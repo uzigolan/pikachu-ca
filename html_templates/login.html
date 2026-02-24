@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Login</h2>
+    <form method="POST" action="{{ url_for('users.login') }}">
+        <div class="mb-3" style="max-width: 350px;">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" required style="max-width: 300px;" data-testid="input-username">
+        </div>
+        <div class="mb-3" style="max-width: 350px;">
+            <label for="password" class="form-label">Password</label>
+            <div class="input-group" style="max-width: 300px;">
+                <input type="password" class="form-control" id="password" name="password" required data-testid="input-password">
+                <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1" style="border-left:0;">
+                    <span id="eyeIcon" class="fa fa-eye" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+        <script>
+        // FontAwesome eye/eye-slash toggle
+        document.getElementById('togglePassword').addEventListener('click', function () {
+            var pw = document.getElementById('password');
+            var icon = document.getElementById('eyeIcon');
+            if (pw.type === 'password') {
+                pw.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                pw.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+        </script>
+        <button type="submit" class="btn btn-primary" data-testid="btn-login">Login</button>
+        {% set allow_self_registration = config.get('allow_self_registration', True) %}
+        {% if allow_self_registration|string|lower == 'true' or allow_self_registration is sameas true %}
+        <a href="{{ url_for('users.register') }}" class="btn btn-link">Register</a>
+        {% endif %}
+    </form>
+</div>
+<!-- FontAwesome CDN for eye icon -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+{% endblock %}

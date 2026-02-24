@@ -1,150 +1,245 @@
 {% extends "layout.html" %}
 {% block content %}
-  <div class="row mb-4">
-    <div class="col">
-      <h1 class="mb-3">Pikachu CA (R&D Only)</h1>
-    </div>
-  </div>
-
-  <!-- Issued Certificates Full Width Section -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <h2>Issued Certificates</h2>
-      <div class="form-group">
-        <input
-          type="text"
-          id="filterInput"
-          class="form-control mb-3"
-          onkeyup="filterTable()"
-          placeholder="Filter by Common Name, Serial, Key or Date">
+  <section class="content-card">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="page-title">Issued Certificates</h2>
+        <p class="page-subtitle">Audit, download, and manage active credentials in one place.</p>
       </div>
-      <table id="certTable" class="table table-striped">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Common Name</th>
-            <th>Serial</th>
-            <th>Key</th>
-            <th>Date (UTC)</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {# Now unpack in the same order you built the tuple: #}
-          {% for id, subject, serial, keycol, date, revoked, expired in certs %}
-          <tr>
-            <td>{{ id }}</td>
-            <td>
-              {% set parts = subject.split(',') %}
-              {% for part in parts %}
-                {% if "commonName=" in part %}
-                  {{ part.split('=')[1].strip() }}
-                {% endif %}
-              {% endfor %}
-            </td>
-            <td>{{ serial }}</td>
-            <td>{{ keycol }}</td>
-            <td>{{ date }}</td>
-            <td>
-              {% if revoked %}
-                <span>Revoked</span>
-              {% elif expired %}
-                <span style="color: orange;">Expired</span>
-              {% else %}
-                <span style="color: green;">Valid</span>
-              {% endif %}
-            </td>
-            <td>
-              <div class="btn-group" role="group">
-                <a href="/view/{{ id }}"      class="btn btn-sm btn-info">View</a>
-                <a href="/downloads/{{ id }}" class="btn btn-sm btn-warning">Download</a>
-
-                <!-- NEW: Download PFX -->
-                <a href="javascript:void(0);"
-                   class="btn btn-sm btn-warning"
-                   style="background-color: orange; border-color: orange;"
-                   onclick="downloadPfx({{ id }});">
-                  PFX
-                </a>
-
-                {% if not revoked %}
-                  <a href="javascript:void(0);"
-     class="btn btn-sm btn-danger"
-     onclick="handleRevoke({{ id }});">
-    Revoke
-  </a>
-{% else %}
-  <span class="badge badge-secondary align-self-center">Revoked</span>
-{% endif %}
-
-                <!-- Updated Delete link: no direct /delete URL, JS handles POST -->
-                <a href="javascript:void(0);"
-                   class="btn btn-sm btn-outline-danger"
-                   onclick="handleDelete({{ id }});">
-                  Delete
-                </a>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="app-meta">
+        <strong>Mode:</strong> {{ ca_mode }}
+      </div>
     </div>
-  </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="form-inline">
+        <label for="pageSizeSelect" class="mr-2">Show:</label>
+        <select id="pageSizeSelect" class="form-control form-control-sm" onchange="changePageSize()">
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span class="ml-2" id="pageInfo"></span>
+      </div>
+      <div>
+        <button class="btn btn-sm btn-outline-secondary mr-2" onclick="previousPage()" id="prevBtn">← Previous</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="nextPage()" id="nextBtn">Next →</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <input
+        type="text"
+        id="filterInput"
+        class="form-control mb-3"
+        onkeyup="filterTable()"
+        placeholder="Filter by common name, serial, key, or date">
+    </div>
+
+    <table id="certTable" class="table table-striped table-sm" data-testid="certs-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Common Name</th>
+          <th>Serial <small class="text-muted">(click to copy)</small></th>
+          <th style="cursor:pointer;" onclick="sortTable(3)">Key <span id="sort-3">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable(4)">Date <span id="sort-4">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable(5)">Status <span id="sort-5">⇅</span></th>
+          <th>Enrollment</th>
+          {% if is_admin %}<th style="cursor:pointer;" onclick="sortTable(7)">User <span id="sort-7">⇅</span></th>{% endif %}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {# Now unpack in the same order you built the tuple: #}
+        {% for id, subject, serial, keycol, date, revoked, expired, username, issued_via, cert_pem in certs %}
+        <tr>
+          <td>{{ id }}</td>
+          <td>
+            {% set parts = subject.split(',') %}
+            {% for part in parts %}
+              {% if "commonName=" in part %}
+                {{ part.split('=')[1].strip() }}
+              {% endif %}
+            {% endfor %}
+          </td>
+          <td>
+            {% set serial_idx = loop.index0 %}
+            <span style="position: relative;">
+              <span title="{{ serial }}" style="cursor: pointer;" onclick="copyToClipboard('{{ serial }}', this, {{ serial_idx }})">
+                <span class="d-none full-serial">{{ serial }}</span>
+                {% if serial|length > 20 %}
+                  {{ serial[:20] }}...
+                {% else %}
+                  {{ serial }}
+                {% endif %}
+              </span>
+              <span id="serial-copied-{{ serial_idx }}" style="display:none; color:var(--success); font-weight:bold; position:absolute; left:105%; top:0;">Copied!</span>
+            </span>
+          </td>
+          <td>{{ keycol }}</td>
+          <td>{{ date }}</td>
+          <td>
+            {% if revoked %}
+              <span class="status-pill status-revoked">Revoked</span>
+            {% elif expired %}
+              <span class="status-pill status-expired">Expired</span>
+            {% else %}
+              <span class="status-pill status-valid">Valid</span>
+            {% endif %}
+          </td>
+          {% set via = issued_via|default('unknown')|lower %}
+          <td>
+            <span class="badge badge-issuer enrollment-pill badge-issuer-{{ via }}">
+              {{ via|upper }}
+            </span>
+          </td>
+          {% if is_admin %}
+            <td>{{ username if username else 'N/A' }}</td>
+          {% endif %}
+          <td>
+            <div class="btn-group cert-actions" role="group">
+              <a href="/view/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-view" data-testid="btn-view-cert">View</a>
+              <a href="/downloads/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-download" data-testid="btn-download-cert">Download</a>
+              <button type="button" class="btn btn-sm btn-ghost cert-action cert-action-copy" onclick="copyCertPem({{ id }}, this);">
+                Copy
+              </button>
+
+              <a href="javascript:void(0);" class="btn btn-sm btn-soft cert-action cert-action-pfx" onclick="downloadPfx({{ id }});">
+                PFX
+              </a>
+
+              {% if not revoked %}
+                <a href="javascript:void(0);" class="btn btn-sm btn-danger-soft cert-action cert-action-revoke" onclick="handleRevoke({{ id }});" data-testid="btn-revoke-cert">
+                  Revoke
+                </a>
+              {% else %}
+                <span class="badge badge-secondary align-self-center">Revoked</span>
+              {% endif %}
+
+              <a href="javascript:void(0);" class="btn btn-sm btn-outline-danger cert-action cert-action-delete" onclick="handleDelete({{ id }});">
+                Delete
+              </a>
+            </div>
+            <textarea class="d-none" id="cert-pem-{{ id }}">{{ cert_pem }}</textarea>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
 
   <script>
+    let sortDirections = {}; // Track sort direction for each column
+    let lastCertState = null;
+
+    function copyToClipboard(text, element, idx) {
+      navigator.clipboard.writeText(text).then(() => {
+        // Show green Copied! feedback
+        var copied = document.getElementById('serial-copied-' + idx);
+        if (copied) {
+          copied.style.display = 'inline';
+          setTimeout(function() { copied.style.display = 'none'; }, 1200);
+        }
+      });
+    }
+
+    function copyCertPem(certId, btn) {
+      const el = document.getElementById("cert-pem-" + certId);
+      if (!el || !navigator.clipboard) return;
+      navigator.clipboard.writeText(el.value.trim()).then(() => {
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = original; }, 1200);
+      });
+    }
+
+    function sortTable(columnIndex) {
+      var table = document.getElementById('certTable');
+      var rows = Array.from(table.getElementsByTagName('tbody')[0].getElementsByTagName('tr'));
+      var isAscending = sortDirections[columnIndex] !== 'asc';
+      sortDirections[columnIndex] = isAscending ? 'asc' : 'desc';
+
+      // Update all sort indicators
+      document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '⇅');
+      document.getElementById('sort-' + columnIndex).textContent = isAscending ? '↑' : '↓';
+
+      rows.sort(function(a, b) {
+        var aText = a.cells[columnIndex].textContent.trim();
+        var bText = b.cells[columnIndex].textContent.trim();
+
+        // Special handling for Date column (index 4) - parse as date
+        if (columnIndex === 4) {
+          var aDate = new Date(aText);
+          var bDate = new Date(bText);
+          return isAscending ? aDate - bDate : bDate - aDate;
+        }
+
+        // Text comparison for other columns
+        if (aText < bText) return isAscending ? -1 : 1;
+        if (aText > bText) return isAscending ? 1 : -1;
+        return 0;
+      });
+
+      // Reattach sorted rows
+      var tbody = table.getElementsByTagName('tbody')[0];
+      rows.forEach(row => tbody.appendChild(row));
+    }
+
     function filterTable() {
       var filterValue = document.getElementById('filterInput').value.toLowerCase();
+      var filterInput = document.getElementById('filterInput');
+
+      // Change background color if filter is active
+      if (filterValue) {
+        filterInput.classList.add('filter-input-active');
+      } else {
+        filterInput.classList.remove('filter-input-active');
+      }
+
       var table = document.getElementById('certTable');
-      var rows = table.getElementsByTagName('tr');
-      for (var i = 1; i < rows.length; i++) {
+      var tbody = table.getElementsByTagName('tbody')[0];
+      var rows = tbody.getElementsByTagName('tr');
+
+      // Hide all rows first, then only show filtered
+      allRows = [];
+      for (var i = 0; i < rows.length; i++) {
+        rows[i].style.display = 'none';
         var commonNameText = rows[i].cells[1].textContent.trim().toLowerCase();
-        var serialText = rows[i].cells[2].textContent.trim().toLowerCase();
+        // If serial is truncated, get the hidden full serial for filtering
+        var serialCell = rows[i].cells[2];
+        var serialText = serialCell.textContent.trim().toLowerCase();
+        var fullSerialSpan = serialCell.querySelector('.full-serial');
+        if (fullSerialSpan) {
+          serialText += ' ' + fullSerialSpan.textContent.trim().toLowerCase();
+        }
         var keyText = rows[i].cells[3].textContent.trim().toLowerCase();
         var dateText = rows[i].cells[4].textContent.trim().toLowerCase();
-
         if (commonNameText.indexOf(filterValue) > -1 ||
             serialText.indexOf(filterValue) > -1 ||
             keyText.indexOf(filterValue) > -1 ||
             dateText.indexOf(filterValue) > -1) {
-          rows[i].style.display = "";
-        } else {
-          rows[i].style.display = "none";
+          allRows.push(rows[i]);
         }
       }
+      showPage(1);
     }
 
     function handleDelete(certId) {
-      // 1) Confirm
-      var sure = confirm('Are you sure you want to delete certificate ' + certId + '?');
-      if (!sure) {
+      var confirmText = prompt("Type 'delete' to confirm deletion of certificate " + certId + ":");
+      if (confirmText === null) return;
+      if (confirmText.trim().toLowerCase() !== 'delete') {
+        alert('Deletion cancelled. You must type delete to confirm.');
         return;
       }
-
-      // 2) Ask for secret
-      var secret = prompt('Please enter the delete secret:');
-      if (secret === null) {
-        // user pressed cancel
-        return;
-      }
-
-      // 3) Create hidden form and POST it
       var form = document.createElement('form');
       form.method = 'POST';
       form.action = '/delete/' + certId;
-
-      var input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'delete_secret';
-      input.value = secret;
-      form.appendChild(input);
-
       document.body.appendChild(form);
       form.submit();
     }
 
-    // NEW: Download PFX – ask for a PFX password and POST to server
+    // Download PFX - ask for a PFX password and POST to server
     function downloadPfx(certId) {
       var pwd = prompt('Choose password for your PFX file:');
       if (pwd === null || pwd === '') {
@@ -166,35 +261,100 @@
       form.submit();
     }
 
+    // Pagination variables
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+
+    function initPagination() {
+      var table = document.getElementById('certTable');
+      var tbody = table.getElementsByTagName('tbody')[0];
+      allRows = Array.from(tbody.getElementsByTagName('tr'));
+      showPage(1);
+    }
+
+    function showPage(page) {
+      currentPage = page;
+      var start = (page - 1) * pageSize;
+      var end = start + pageSize;
+
+      allRows.forEach((row, index) => {
+        if (index >= start && index < end) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      updatePaginationInfo();
+    }
+
+    function updatePaginationInfo() {
+      var totalPages = Math.ceil(allRows.length / pageSize);
+      var start = (currentPage - 1) * pageSize + 1;
+      var end = Math.min(currentPage * pageSize, allRows.length);
+
+      document.getElementById('pageInfo').textContent =
+        `Showing ${start}-${end} of ${allRows.length}`;
+
+      document.getElementById('prevBtn').disabled = currentPage === 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+
+    function changePageSize() {
+      pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+      showPage(1);
+    }
+
+    function nextPage() {
+      var totalPages = Math.ceil(allRows.length / pageSize);
+      if (currentPage < totalPages) {
+        showPage(currentPage + 1);
+      }
+    }
+
+    function previousPage() {
+      if (currentPage > 1) {
+        showPage(currentPage - 1);
+      }
+    }
+
+    // Initialize pagination on page load
+    window.addEventListener('DOMContentLoaded', initPagination);
+
+    async function pollCertState() {
+      try {
+        const res = await fetch('/certs/state', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (lastCertState && (data.count !== lastCertState.count || data.max_id !== lastCertState.max_id)) {
+          window.location.reload();
+          return;
+        }
+        lastCertState = data;
+      } catch (err) {
+        console.debug('cert-state poll failed', err);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      pollCertState();
+      setInterval(pollCertState, 7000);
+    });
+
     function handleRevoke(certId) {
-      // 1) Confirm
-      var sure = confirm('Are you sure you want to revoke certificate ' + certId + '?');
-      if (!sure) {
+      var confirmText = prompt("Type 'revoke' to confirm revocation of certificate " + certId + ":");
+      if (confirmText === null) return;
+      if (confirmText.trim().toLowerCase() !== 'revoke') {
+        alert('Revocation cancelled. You must type revoke to confirm.');
         return;
       }
-
-      // 2) Ask for secret
-      var secret = prompt('Please enter the delete secret:');
-      if (secret === null) {
-        // user pressed cancel
-        return;
-      }
-
-      // 3) Create hidden form and POST it
       var form = document.createElement('form');
       form.method = 'POST';
       form.action = '/revoke/' + certId;
-
-      var input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'delete_secret';
-      input.value = secret;
-      form.appendChild(input);
-
       document.body.appendChild(form);
       form.submit();
     }
   </script>
 
 {% endblock %}
-

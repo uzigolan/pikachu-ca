@@ -1,6 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-  <h1 class="mb-4">Certificate Details</h1>
+  {% set via = issued_via|default("unknown") %}
+  {% set via_color = 'green' if via=='est' else ('purple' if via=='scep' else '#0d6efd') %}
+  <h1 class="mb-4 d-flex align-items-center">
+    <span class="mr-3">Certificate Details</span>
+    <span class="badge" style="background-color: {{ via_color }}; color: white;">
+      Issued via: {{ via|upper }}
+    </span>
+  </h1>
   <div class="row">
     <div class="col-md-6">
       <h4>Certificate Summary</h4>
@@ -20,14 +27,81 @@
           {% endif %}
         {% endfor %}
       </ul>
+
+      <h4 class="mt-4">Raw Certificate</h4>
+      <ul class="nav nav-tabs" id="certRawTabs" role="tablist">
+        <li class="nav-item">
+          <a class="nav-link active" id="cert-raw-pem-tab" data-toggle="tab" href="#cert-raw-pem" role="tab" aria-controls="cert-raw-pem" aria-selected="true">PEM</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" id="cert-raw-b64-tab" data-toggle="tab" href="#cert-raw-b64" role="tab" aria-controls="cert-raw-b64" aria-selected="false">Base64</a>
+        </li>
+      </ul>
+      <div class="tab-content border border-top-0 p-3" id="certRawTabsContent">
+        <div class="tab-pane fade show active" id="cert-raw-pem" role="tabpanel" aria-labelledby="cert-raw-pem-tab">
+          <div class="d-flex justify-content-start">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-target="cert-raw-pem-pre">Copy</button>
+          </div>
+          <pre id="cert-raw-pem-pre" style="font-size: 0.85em;">{{ raw_cert }}</pre>
+        </div>
+        <div class="tab-pane fade" id="cert-raw-b64" role="tabpanel" aria-labelledby="cert-raw-b64-tab">
+          <div class="d-flex justify-content-start">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-target="cert-raw-b64-pre">Copy</button>
+          </div>
+          <pre id="cert-raw-b64-pre" style="font-size: 0.8em;">{{ raw_cert_b64 }}</pre>
+        </div>
+      </div>
+
+      <h4 class="mt-4">Public Key</h4>
+      <ul class="nav nav-tabs" id="certPublicKeyTabs" role="tablist">
+        <li class="nav-item">
+          <a class="nav-link active" id="cert-public-pkcs8-tab" data-toggle="tab" href="#cert-public-pkcs8" role="tab" aria-controls="cert-public-pkcs8" aria-selected="true">PKCS8</a>
+        </li>
+        {% if not is_pqc_key and is_ssh2_key %}
+          <li class="nav-item">
+            <a class="nav-link" id="cert-public-rfc4716-tab" data-toggle="tab" href="#cert-public-rfc4716" role="tab" aria-controls="cert-public-rfc4716" aria-selected="false">SSH2</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="cert-public-rfc4716-bare-tab" data-toggle="tab" href="#cert-public-rfc4716-bare" role="tab" aria-controls="cert-public-rfc4716-bare" aria-selected="false">SSH2 (bare)</a>
+          </li>
+        {% endif %}
+      </ul>
+      <div class="tab-content border border-top-0 p-3" id="certPublicKeyTabsContent">
+        <div class="tab-pane fade show active" id="cert-public-pkcs8" role="tabpanel" aria-labelledby="cert-public-pkcs8-tab">
+          <div class="d-flex justify-content-start">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-target="cert-public-pkcs8-pre">Copy</button>
+          </div>
+          <pre id="cert-public-pkcs8-pre">{{ public_key_pem }}</pre>
+        </div>
+        {% if not is_pqc_key and is_ssh2_key %}
+          <div class="tab-pane fade" id="cert-public-rfc4716" role="tabpanel" aria-labelledby="cert-public-rfc4716-tab">
+            {% if public_key_rfc4716 %}
+              <div class="d-flex justify-content-start">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-target="cert-public-rfc4716-pre">Copy</button>
+              </div>
+              <pre id="cert-public-rfc4716-pre">{{ public_key_rfc4716 }}</pre>
+            {% else %}
+              <p><em>SSH2 unavailable{% if (public_key_errors|default({})).openssh %}: {{ (public_key_errors|default({})).openssh }}{% endif %}</em></p>
+            {% endif %}
+          </div>
+          <div class="tab-pane fade" id="cert-public-rfc4716-bare" role="tabpanel" aria-labelledby="cert-public-rfc4716-bare-tab">
+            {% if public_key_openssh %}
+              <div class="d-flex justify-content-start">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-target="cert-public-rfc4716-bare-pre">Copy</button>
+              </div>
+              <pre id="cert-public-rfc4716-bare-pre">{{ public_key_openssh }}</pre>
+            {% else %}
+              <p><em>SSH2 (bare) unavailable{% if (public_key_errors|default({})).openssh %}: {{ (public_key_errors|default({})).openssh }}{% endif %}</em></p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
     </div>
     <div class="col-md-6">
       <h4>Detailed Certificate Text</h4>
       <pre>{{ cert_text }}</pre>
     </div>
   </div>
-  <h4 class="mt-4">Raw Certificate (PEM Format)</h4>
-  <pre>{{ raw_cert }}</pre>
   <a href="/" class="btn btn-secondary mt-3">← Back to Home</a>
 {% endblock %}
 

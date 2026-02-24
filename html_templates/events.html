@@ -1,0 +1,248 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Manage Events</h2>
+
+<form method="get" class="form-inline mb-3">
+  <input type="text" name="resource_type" class="form-control mr-2" placeholder="Resource Type" value="{{ request.args.get('resource_type', '') }}" data-testid="input-resource-type">
+  <input type="text" name="event_type" class="form-control mr-2" placeholder="Event Type" value="{{ request.args.get('event_type', '') }}" data-testid="input-event-type">
+  <input type="text" name="resource_name" class="form-control mr-2" placeholder="Resource Name" value="{{ request.args.get('resource_name', '') }}" data-testid="input-resource-name">
+  <button type="submit" class="btn btn-primary mr-2" data-testid="btn-filter">Filter</button>
+  {% set has_filter = request.args.get('resource_type') or request.args.get('event_type') or request.args.get('resource_name') %}
+  <a href="?" class="btn btn-secondary{% if not has_filter %} disabled{% endif %}" {% if not has_filter %}aria-disabled="true" tabindex="-1"{% endif %} data-testid="btn-clear-filter">Clear</a>
+</form>
+
+
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="form-inline">
+    <label for="pageSizeSelect" class="mr-2">Show:</label>
+    <select id="pageSizeSelect" class="form-control form-control-sm mr-2" onchange="changePageSize()">
+      <option value="10" selected>10</option>
+      <option value="25">25</option>
+      <option value="50">50</option>
+    </select>
+    <span id="pageInfo" class="mr-3"></span>
+  </div>
+  <div>
+    <button class="btn btn-sm btn-secondary" onclick="previousPage()" id="prevBtn">&larr; Previous</button>
+    <button class="btn btn-sm btn-secondary" onclick="nextPage()" id="nextBtn">Next &rarr;</button>
+  </div>
+</div>
+<div class="form-group">
+  <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by Event Type, Resource, Name, or Details">
+</div>
+
+<table class="table table-bordered table-striped" data-testid="events-table" style="table-layout: fixed;">
+  <thead>
+    <tr>
+      {% set col_index = 0 %}
+      <th style="cursor:pointer; white-space: nowrap;" onclick="sortTable({{ col_index }})">Time <span id="sort-{{ col_index }}" style="display:inline-block; width: 1.1em; text-align:center;">⇅</span></th>
+      {% set col_index = col_index + 1 %}
+      {% if show_user_column %}
+        <th style="cursor:pointer; white-space: nowrap;" onclick="sortTable({{ col_index }})">User <span id="sort-{{ col_index }}" style="display:inline-block; width: 1.1em; text-align:center;">⇅</span></th>
+        {% set col_index = col_index + 1 %}
+      {% endif %}
+      <th style="cursor:pointer; white-space: nowrap;" onclick="sortTable({{ col_index }})">Event Type <span id="sort-{{ col_index }}" style="display:inline-block; width: 1.1em; text-align:center;">⇅</span></th>
+      {% set col_index = col_index + 1 %}
+      <th style="cursor:pointer; white-space: nowrap;" onclick="sortTable({{ col_index }})">Resource Type <span id="sort-{{ col_index }}" style="display:inline-block; width: 1.1em; text-align:center;">⇅</span></th>
+      {% set col_index = col_index + 1 %}
+      <th style="cursor:pointer; white-space: nowrap;" onclick="sortTable({{ col_index }})">Resource Name <span id="sort-{{ col_index }}" style="display:inline-block; width: 1.1em; text-align:center;">⇅</span></th>
+      {% set col_index = col_index + 1 %}
+      <th style="cursor:pointer; white-space: nowrap;" onclick="sortTable({{ col_index }})">Details <span id="sort-{{ col_index }}" style="display:inline-block; width: 1.1em; text-align:center;">⇅</span></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for event in events %}
+    <tr>
+      <td>{% if event[5] %}{{ event[5][:16].replace('T', ' ') }}{% endif %}</td>
+      {% if show_user_column %}
+        <td>{{ event[4] }}</td>
+      {% endif %}
+      <td>
+        {% if event[1] == 'create' %}
+          <span class="badge badge-success">Create</span>
+        {% elif event[1] == 'delete' %}
+          <span class="badge badge-danger">Delete</span>
+        {% elif event[1] == 'revoke' %}
+          <span class="badge badge-warning">Revoke</span>
+        {% elif event[1] == 'update' %}
+          <span class="badge badge-info">Update</span>
+        {% else %}
+          <span class="badge badge-secondary">{{ event[1] }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if event[2] == 'certificate' %}
+          <span class="badge badge-primary">Certificate</span>
+        {% elif event[2] == 'policy' %}
+          <span class="badge badge-dark">Policy</span>
+        {% else %}
+          <span class="badge badge-secondary">{{ event[2] }}</span>
+        {% endif %}
+      </td>
+      <td>
+        <span style="position: relative;">
+          <span class="full-resource-name" style="display:none;">{{ event[3] }}</span>
+          <span title="{{ event[3] }}" style="cursor: pointer;" onclick="copyResourceName(this)">
+            {% if event[3]|length > 20 %}
+              {{ event[3][:20] }}...
+            {% else %}
+              {{ event[3] }}
+            {% endif %}
+          </span>
+          <span class="resource-copied" style="display:none; color:green; font-weight:bold; position:absolute; left:105%; top:0;">Copied!</span>
+        </span>
+      </td>
+      <td>{{ event[6] }}</td>
+      <td><a href="{{ url_for('events.event_detail', event_id=event[0]) }}" class="btn btn-sm btn-outline-info">View</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+
+<script>
+function copyResourceName(element) {
+  var full = element.parentElement.querySelector('.full-resource-name').textContent;
+  navigator.clipboard.writeText(full).then(() => {
+    var copied = element.parentElement.querySelector('.resource-copied');
+    if (copied) {
+      copied.style.display = 'inline';
+      setTimeout(function() { copied.style.display = 'none'; }, 1200);
+    }
+  });
+}
+let currentPage = 1;
+let pageSize = 10;
+let allRows = [];
+let masterRows = [];
+let sortDirections = {};
+function initPagination() {
+  var table = document.querySelector('table.table');
+  var tbody = table.getElementsByTagName('tbody')[0];
+  masterRows = Array.from(tbody.getElementsByTagName('tr'));
+  allRows = masterRows.slice();
+  showPage(1);
+}
+function showPage(page) {
+  currentPage = page;
+  var start = (page - 1) * pageSize;
+  var end = start + pageSize;
+  allRows.forEach((row, index) => {
+    row.style.display = (index >= start && index < end) ? '' : 'none';
+  });
+  updatePaginationInfo();
+}
+function updatePaginationInfo() {
+  var totalPages = Math.ceil(allRows.length / pageSize);
+  var start = (currentPage - 1) * pageSize + 1;
+  var end = Math.min(currentPage * pageSize, allRows.length);
+  document.getElementById('pageInfo').textContent = `Showing ${start}-${end} of ${allRows.length}`;
+  document.getElementById('prevBtn').disabled = currentPage === 1;
+  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+}
+function changePageSize() {
+  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+  showPage(1);
+}
+function nextPage() {
+  var totalPages = Math.ceil(allRows.length / pageSize);
+  if (currentPage < totalPages) {
+    showPage(currentPage + 1);
+  }
+}
+function previousPage() {
+  if (currentPage > 1) {
+    showPage(currentPage - 1);
+  }
+}
+function filterTable() {
+  var filterValue = document.getElementById('filterInput').value.toLowerCase();
+  var filterInput = document.getElementById('filterInput');
+  if (filterValue) {
+    filterInput.classList.add('filter-input-active');
+  } else {
+    filterInput.classList.remove('filter-input-active');
+  }
+  allRows = [];
+  for (var i = 0; i < masterRows.length; i++) {
+    masterRows[i].style.display = 'none';
+    var timeText = masterRows[i].cells[0].textContent.trim().toLowerCase();
+    var userText = masterRows[i].cells.length > 6 ? masterRows[i].cells[1].textContent.trim().toLowerCase() : '';
+    var eventTypeText = masterRows[i].cells[masterRows[i].cells.length > 6 ? 2 : 1].textContent.trim().toLowerCase();
+    var resourceTypeText = masterRows[i].cells[masterRows[i].cells.length > 6 ? 3 : 2].textContent.trim().toLowerCase();
+    var resourceNameText = masterRows[i].cells[masterRows[i].cells.length > 6 ? 4 : 3].textContent.trim().toLowerCase();
+    var detailsText = masterRows[i].cells[masterRows[i].cells.length > 6 ? 5 : 4].textContent.trim().toLowerCase();
+    if (
+      timeText.indexOf(filterValue) > -1 ||
+      userText.indexOf(filterValue) > -1 ||
+      eventTypeText.indexOf(filterValue) > -1 ||
+      resourceTypeText.indexOf(filterValue) > -1 ||
+      resourceNameText.indexOf(filterValue) > -1 ||
+      detailsText.indexOf(filterValue) > -1
+    ) {
+      allRows.push(masterRows[i]);
+    }
+  }
+  showPage(1);
+}
+function sortTable(columnIndex) {
+  var table = document.querySelector('table.table');
+  var tbody = table.getElementsByTagName('tbody')[0];
+  var isAscending = sortDirections[columnIndex] !== 'asc';
+  sortDirections[columnIndex] = isAscending ? 'asc' : 'desc';
+
+  document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '⇅');
+  document.getElementById('sort-' + columnIndex).textContent = isAscending ? '↑' : '↓';
+
+  masterRows.sort(function(a, b) {
+    var aText = a.cells[columnIndex].textContent.trim().toLowerCase();
+    var bText = b.cells[columnIndex].textContent.trim().toLowerCase();
+    if (columnIndex === 0) {
+      var aDate = new Date(aText);
+      var bDate = new Date(bText);
+      return isAscending ? aDate - bDate : bDate - aDate;
+    }
+    if (aText < bText) return isAscending ? -1 : 1;
+    if (aText > bText) return isAscending ? 1 : -1;
+    return 0;
+  });
+
+  masterRows.forEach(row => tbody.appendChild(row));
+  if (document.getElementById('filterInput').value) {
+    filterTable();
+  } else {
+    allRows = masterRows.slice();
+    showPage(1);
+  }
+}
+window.addEventListener('DOMContentLoaded', initPagination);
+</script>
+
+<div class="mt-3">
+  <div style="margin-bottom: 6px;"><strong>Legend:</strong></div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 12px 32px; max-width: 900px;">
+    <div>
+      <div style="font-weight: 600;">Event Types</div>
+      <div><span class="badge badge-success">Create</span> Create</div>
+      <div><span class="badge badge-danger">Delete</span> Delete</div>
+      <div><span class="badge badge-warning">Revoke</span> Revoke</div>
+      <div><span class="badge badge-info">Update</span> Update</div>
+    </div>
+    <div>
+      <div style="font-weight: 600;">Resource Types</div>
+      <div><span class="badge badge-primary">Certificate</span> Certificate</div>
+      <div><span class="badge badge-dark">Policy</span> Policy</div>
+      <div><span class="badge badge-info">Key</span> Key</div>
+      <div><span class="badge badge-warning">Profile</span> Profile</div>
+      <div><span class="badge badge-secondary">Challenge Password</span> Challenge Password</div>
+    </div>
+    <div>
+      <div style="font-weight: 600;">Other</div>
+      <div><span class="badge badge-secondary">Other</span> Other/Unknown</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

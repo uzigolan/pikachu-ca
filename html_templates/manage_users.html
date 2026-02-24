@@ -1,0 +1,334 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <h2 style="margin-bottom: 0;">Manage Users</h2>
+    <a href="{{ url_for('users.user_events') }}" class="btn btn-warning mr-2 action-pill" style="min-width: 180px; font-size: 1.08em; font-weight: 500;">User Events</a>
+</div>
+<div class="form-group">
+    <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by any column">
+</div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="form-inline">
+        <label for="pageSizeSelect" class="mr-2">Show:</label>
+        <select id="pageSizeSelect" class="form-control form-control-sm mr-2" onchange="changePageSize()">
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+        </select>
+        <span id="pageInfo" class="mr-3"></span>
+    </div>
+    <div>
+        <button class="btn btn-sm btn-secondary" onclick="previousPage()" id="prevBtn">← Previous</button>
+        <button class="btn btn-sm btn-secondary" onclick="nextPage()" id="nextBtn">Next →</button>
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="table table-bordered" id="usersTable" data-testid="users-table">
+        <thead>
+            <tr>
+                <th style="cursor:pointer;" onclick="sortTable(0)">ID <span id="sort-0">⇅</span></th>
+                <th style="cursor:pointer;" onclick="sortTable(1)">Username <span id="sort-1">⇅</span></th>
+                <th style="cursor:pointer;" onclick="sortTable(2)">Email <span id="sort-2">⇅</span></th>
+                <th style="cursor:pointer;" onclick="sortTable(3)">Idle <span id="sort-3">⇅</span></th>
+                <th style="cursor:pointer;" onclick="sortTable(4)">Settings/Status <span id="sort-4">⇅</span></th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="users-table-body">
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email or '' }}</td>
+                <td>{{ user.idle or '' }}</td>
+                <td>
+                    <div>
+                        {% if user.role == 'admin' %}
+                            <span class="badge" style="background-color: #ff4d4d; color: white;">Admin</span>
+                        {% else %}
+                            <span class="badge" style="background-color: #007bff; color: white;">User</span>
+                        {% endif %}
+                        {% if user.auth_source == 'ldap' %}
+                            <span class="badge" style="background-color: #000; color: white;">LDAP</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Local</span>
+                        {% endif %}
+                        {% if user.status == 'active' %}
+                            <span class="badge badge-success">Active</span>
+                        {% elif user.status == 'pending' %}
+                            <span class="badge badge-warning">Pending</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Suspended</span>
+                        {% endif %}
+                        {% if user.is_logged_in %}
+                            <span class="badge badge-info">In</span>
+                        {% else %}
+                            <span class="badge" style="background-color: #6f42c1; color: white;">Out</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td style="white-space: nowrap;">
+                    {% if user.id != current_user.id %}
+                    <form method="post" action="{{ url_for('users.delete_user', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-danger action-pill" onclick="return confirm('Are you sure you want to delete this user?');" data-testid="btn-delete-user">Delete</button>
+                    </form>
+                    <form method="post" action="{{ url_for('users.change_role', user_id=user.id) }}" style="display:inline;">
+                        <select name="role" class="form-control form-control-sm d-inline-block w-auto" style="vertical-align:middle;">
+                            <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary action-pill">Change Role</button>
+                            <button type="submit" class="btn btn-sm btn-primary action-pill" data-testid="btn-change-role">Change Role</button>
+                    </form>
+                    {% if user.auth_source != 'ldap' %}
+                    <form method="post" action="{{ url_for('users.reset_password', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-warning action-pill" onclick="return confirm('Reset password for this user?');" data-testid="btn-reset-password">Reset Password</button>
+                    </form>
+                    {% endif %}
+                    {% if user.status == 'active' %}
+                        <form method="post" action="{{ url_for('users.toggle_user_active', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-warning action-pill" data-testid="btn-suspend-user">Suspend</button>
+                        </form>
+                    {% elif user.status == 'deactivated' %}
+                        <form method="post" action="{{ url_for('users.toggle_user_active', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-success action-pill" data-testid="btn-activate-user">Activate</button>
+                        </form>
+                    {% elif user.status == 'pending' %}
+                        <form method="post" action="{{ url_for('users.approve_user', user_id=user.id) }}" style="display:inline;">
+                               <button type="submit" class="btn btn-sm btn-success action-pill" data-testid="btn-approve-user">Approve</button>
+                        </form>
+                        <form method="post" action="{{ url_for('users.toggle_user_active', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-warning action-pill">Suspend</button>
+                        </form>
+                    {% endif %}
+                    {% if user.is_logged_in %}
+                        <form method="post" action="{{ url_for('users.admin_logout', user_id=user.id) }}" style="display:inline; margin-left: 2px;">
+                            <button type="submit" class="btn btn-sm btn-secondary action-pill">Logout</button>
+                        </form>
+                    {% endif %}
+                    {% else %}
+                    <span class="text-muted">(You)</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<a href="{{ url_for('users.add_user') }}" class="btn btn-success action-pill" data-testid="btn-add-user">Add User</a>
+
+<div class="mt-3">
+    {% if config.get('MAX_IDLE_TIME') %}
+    <div style="margin-bottom: 6px;"><strong>User Max Session idle time :</strong> {{ config.get('MAX_IDLE_TIME') }}</div>
+    {% endif %}
+    <div style="margin-bottom: 6px;"><strong>Legend:</strong></div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 8px 16px; max-width: 840px;">
+        <div>
+            <div style="font-weight: 600;">User Roles</div>
+            <div><span class="badge" style="background-color: #ff4d4d; color: white;">Admin</span> Admin</div>
+            <div><span class="badge" style="background-color: #007bff; color: white;">User</span> User</div>
+        </div>
+        <div>
+            <div style="font-weight: 600;">Auth Source</div>
+            <div><span class="badge" style="background-color: #000; color: white;">LDAP</span> LDAP</div>
+            <div><span class="badge badge-secondary">Local</span> Local</div>
+        </div>
+        <div>
+            <div style="font-weight: 600;">User State</div>
+            <div><span class="badge badge-success">Active</span> Active</div>
+            <div><span class="badge badge-warning">Pending</span> Pending</div>
+            <div><span class="badge badge-secondary">Suspended</span> Suspended</div>
+        </div>
+        <div>
+            <div style="font-weight: 600;">Login Status</div>
+            <div><span class="badge badge-info">In</span> Logged in</div>
+            <div><span class="badge" style="background-color: #6f42c1; color: white;">Out</span> Logged out</div>
+        </div>
+    </div>
+</div>
+
+<script>
+function renderUserRow(user, currentUserId) {
+    let statusBadge = '<span class="badge badge-secondary">Suspended</span>';
+    if (user.status === 'active') statusBadge = '<span class="badge badge-success">Active</span>';
+    else if (user.status === 'pending') statusBadge = '<span class="badge badge-warning">Pending</span>';
+    let loggedInBadge = user.is_logged_in
+        ? '<span class="badge badge-info">In</span>'
+        : '<span class="badge" style="background-color: #6f42c1; color: white;">Out</span>';
+    const sourceBadge = user.auth_source === 'ldap'
+        ? '<span class="badge" style="background-color: #000; color: white;">LDAP</span>'
+        : '<span class="badge badge-secondary">Local</span>';
+    const roleBadge = user.role === 'admin'
+        ? '<span class="badge" style="background-color: #ff4d4d; color: white;">Admin</span>'
+        : '<span class="badge" style="background-color: #007bff; color: white;">User</span>';
+    let actions = '';
+    if (user.id !== currentUserId) {
+        actions += `<form method="post" action="/users/delete/${user.id}" style="display:inline;">
+            <button type="submit" class="btn btn-sm btn-danger action-pill" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
+        </form>`;
+        actions += `<form method="post" action="/users/change_role/${user.id}" style="display:inline;" oninput="this.querySelector('button[type=submit]').disabled = this.querySelector('select').value === '${user.role}'">
+            <select name="role" class="form-control form-control-sm d-inline-block w-auto" style="vertical-align:middle;">
+                <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary action-pill" ${user.role === (user.role === 'admin' ? 'admin' : 'user') ? 'disabled' : ''}>Change Role</button>
+        </form>`;
+            if (user.auth_source !== 'ldap') {
+                actions += `<form method="post" action="/users/reset_password/${user.id}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm action-pill" style="background-color: #6c757d; color: white;" onclick="return confirm('Reset password for this user?');">Reset Password</button>
+                </form>`;
+            }
+        if (user.status === 'active') {
+            actions += `<form method="post" action="/users/toggle_active/${user.id}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-warning action-pill">Suspend</button>
+            </form>`;
+        } else if (user.status === 'deactivated') {
+            actions += `<form method="post" action="/users/toggle_active/${user.id}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-success action-pill">Activate</button>
+            </form>`;
+        } else if (user.status === 'pending') {
+            actions += `<form method="post" action="/users/approve_user/${user.id}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-success action-pill">Approve</button>
+            </form>`;
+            actions += `<form method="post" action="/users/toggle_active/${user.id}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-warning action-pill">Suspend</button>
+            </form>`;
+        }
+        if (user.is_logged_in) {
+            actions += `<form method="post" action="/users/admin_logout/${user.id}" style="display:inline; margin-left: 2px;">
+                            <button type="submit" class="btn btn-sm btn-secondary action-pill" data-testid="btn-logout-user">Logout</button>
+            </form>`;
+        }
+    } else {
+        actions = '<span class="text-muted">(You)</span>';
+    }
+    return `<tr>
+        <td>${user.id}</td>
+        <td>${user.username}</td>
+        <td>${user.email || ''}</td>
+        <td>${user.idle || ''}</td>
+        <td><div>${roleBadge} ${sourceBadge} ${statusBadge} ${loggedInBadge}</div></td>
+        <td style="white-space: nowrap;">${actions}</td>
+    </tr>`;
+}
+let masterRows = [];
+let allRows = [];
+let currentPage = 1;
+let pageSize = 10;
+let sortDirections = {};
+let currentSortColumn = null;
+
+function collectRows() {
+    const tbody = document.getElementById('users-table-body');
+    masterRows = Array.from(tbody.querySelectorAll('tr'));
+    allRows = masterRows.slice();
+}
+
+function showPage(page) {
+    const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+    currentPage = page;
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const tbody = document.getElementById('users-table-body');
+    tbody.innerHTML = '';
+    allRows.slice(start, end).forEach(row => tbody.appendChild(row));
+    updatePaginationInfo();
+}
+
+function updatePaginationInfo() {
+    const totalPages = Math.ceil(allRows.length / pageSize) || 1;
+    const start = (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, allRows.length);
+    const pageInfo = document.getElementById('pageInfo');
+    if (pageInfo) {
+        pageInfo.textContent = `Showing ${start}-${end} of ${allRows.length}`;
+    }
+    document.getElementById('prevBtn').disabled = currentPage === 1;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+    showPage(1);
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(allRows.length / pageSize);
+    if (currentPage < totalPages) {
+        showPage(currentPage + 1);
+    }
+}
+
+function previousPage() {
+    if (currentPage > 1) {
+        showPage(currentPage - 1);
+    }
+}
+
+function filterTable(preservePage = false) {
+    const filterValue = document.getElementById('filterInput').value.toLowerCase();
+    const filterInput = document.getElementById('filterInput');
+    if (filterValue) {
+        filterInput.classList.add('filter-input-active');
+    } else {
+        filterInput.classList.remove('filter-input-active');
+    }
+    allRows = masterRows.filter(function(row) {
+        let text = '';
+        for (let i = 0; i < row.cells.length - 1; ++i) { // skip Actions col
+            text += row.cells[i].textContent.trim().toLowerCase() + ' ';
+        }
+        return text.indexOf(filterValue) > -1;
+    });
+    showPage(preservePage ? currentPage : 1);
+}
+
+function applySort(columnIndex, direction) {
+    masterRows.sort(function(a, b) {
+        var aText = a.cells[columnIndex].textContent.trim().toLowerCase();
+        var bText = b.cells[columnIndex].textContent.trim().toLowerCase();
+        if (aText < bText) return -1;
+        if (aText > bText) return 1;
+        return 0;
+    });
+    if (direction === 'desc') {
+        masterRows.reverse();
+    }
+    // Update sort indicators
+    document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '\u21C5');
+    document.getElementById('sort-' + columnIndex).textContent = direction === 'asc' ? '\u2191' : '\u2193';
+}
+
+function sortTable(columnIndex) {
+    const nextDirection = sortDirections[columnIndex] === 'asc' ? 'desc' : 'asc';
+    sortDirections[columnIndex] = nextDirection;
+    currentSortColumn = columnIndex;
+    applySort(columnIndex, nextDirection);
+    filterTable();
+}
+
+function fetchAndUpdateUsers() {
+    fetch('/users/api')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = data.users.map(user => renderUserRow(user, data.current_user_id)).join('');
+            collectRows();
+            if (currentSortColumn !== null) {
+                const direction = sortDirections[currentSortColumn] || 'asc';
+                applySort(currentSortColumn, direction);
+            }
+            filterTable(true);
+        });
+}
+setInterval(fetchAndUpdateUsers, 5000);
+window.addEventListener('DOMContentLoaded', function() {
+    fetchAndUpdateUsers();
+    collectRows();
+    showPage(1);
+});
+</script>
+{% endblock %}
+

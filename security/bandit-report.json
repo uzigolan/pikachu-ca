@@ -1,0 +1,1131 @@
+{
+  "errors": [],
+  "generated_at": "2026-02-23T09:04:08Z",
+  "metrics": {
+    "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py": {
+      "CONFIDENCE.HIGH": 49,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 50,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 2448,
+      "nosec": 0,
+      "skipped_tests": 3
+    },
+    "_totals": {
+      "CONFIDENCE.HIGH": 49,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 50,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 2448,
+      "nosec": 0,
+      "skipped_tests": 3
+    }
+  },
+  "results": [
+    {
+      "code": "6 import logging\n7 import subprocess\n8 import tempfile\n",
+      "col_offset": 0,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 7,
+      "line_range": [
+        7
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "127             return dt.replace(tzinfo=timezone.utc)\n128         except Exception:\n129             continue\n130     try:\n",
+      "col_offset": 8,
+      "end_col_offset": 20,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Continue detected.",
+      "line_number": 128,
+      "line_range": [
+        128,
+        129
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b112_try_except_continue.html",
+      "test_id": "B112",
+      "test_name": "try_except_continue"
+    },
+    {
+      "code": "152             conn.commit()\n153     except Exception:\n154         pass\n155 \n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 153,
+      "line_range": [
+        153,
+        154
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "166             return LDAP_SOURCE_CACHE[key]\n167     except Exception:\n168         pass\n169     if app.config.get(\"LDAP_ENABLED\") and ldap_user_exists(username, app.config, app.logger):\n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 167,
+      "line_range": [
+        167,
+        168
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "295 app.config[\"SQLALCHEMY_TRACK_MODIFICATIONS\"] = False\n296 app.config[\"SECRET_KEY\"] = \"marketing\"  # Replace with a secure unique secret in production\n297 \n",
+      "col_offset": 11,
+      "end_col_offset": 23,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 259,
+        "link": "https://cwe.mitre.org/data/definitions/259.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Possible hardcoded password: 'marketing'",
+      "line_number": 296,
+      "line_range": [
+        296
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b105_hardcoded_password_string.html",
+      "test_id": "B105",
+      "test_name": "hardcoded_password_string"
+    },
+    {
+      "code": "422     try:\n423         proc = subprocess.run([\"openssl\", \"version\", \"-a\"], capture_output=True, text=True)\n424         if proc.returncode == 0:\n",
+      "col_offset": 15,
+      "end_col_offset": 91,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 423,
+      "line_range": [
+        423
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "422     try:\n423         proc = subprocess.run([\"openssl\", \"version\", \"-a\"], capture_output=True, text=True)\n424         if proc.returncode == 0:\n",
+      "col_offset": 15,
+      "end_col_offset": 91,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 423,
+      "line_range": [
+        423
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "429         try:\n430             p2 = subprocess.run([\"openssl\", \"list\", \"-providers\"], capture_output=True, text=True)\n431             if p2.returncode == 0:\n",
+      "col_offset": 17,
+      "end_col_offset": 98,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 430,
+      "line_range": [
+        430
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "429         try:\n430             p2 = subprocess.run([\"openssl\", \"list\", \"-providers\"], capture_output=True, text=True)\n431             if p2.returncode == 0:\n",
+      "col_offset": 17,
+      "end_col_offset": 98,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 430,
+      "line_range": [
+        430
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "530 \n531             proc = subprocess.run(\n532                 [\"openssl\", \"x509\", \"-in\", path, \"-noout\", \"-text\"],\n533                 capture_output=True, text=True\n534             )\n535             # clean up immediately\n",
+      "col_offset": 19,
+      "end_col_offset": 13,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 531,
+      "line_range": [
+        531,
+        532,
+        533,
+        534
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "530 \n531             proc = subprocess.run(\n532                 [\"openssl\", \"x509\", \"-in\", path, \"-noout\", \"-text\"],\n533                 capture_output=True, text=True\n534             )\n535             # clean up immediately\n",
+      "col_offset": 19,
+      "end_col_offset": 13,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 531,
+      "line_range": [
+        531,
+        532,
+        533,
+        534
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "535             # clean up immediately\n536             try: subprocess.run([\"rm\", \"-f\", path])\n537             except: pass\n",
+      "col_offset": 17,
+      "end_col_offset": 51,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 536,
+      "line_range": [
+        536
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "535             # clean up immediately\n536             try: subprocess.run([\"rm\", \"-f\", path])\n537             except: pass\n",
+      "col_offset": 17,
+      "end_col_offset": 51,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 536,
+      "line_range": [
+        536
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "536             try: subprocess.run([\"rm\", \"-f\", path])\n537             except: pass\n538 \n",
+      "col_offset": 12,
+      "end_col_offset": 24,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 537,
+      "line_range": [
+        537
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "579         cmd.extend([\"-in\", f.name, \"-noout\", \"-text\"])\n580         p = subprocess.run(cmd, capture_output=True, text=True)\n581         return p.stdout or p.stderr\n",
+      "col_offset": 12,
+      "end_col_offset": 63,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 580,
+      "line_range": [
+        580
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "655     try:\n656         proc = subprocess.run(\n657             [\"openssl\", \"x509\", \"-in\", path, \"-noout\", \"-text\"],\n658             capture_output=True, text=True\n659         )\n660         text = proc.stdout or proc.stderr\n",
+      "col_offset": 15,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 656,
+      "line_range": [
+        656,
+        657,
+        658,
+        659
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "655     try:\n656         proc = subprocess.run(\n657             [\"openssl\", \"x509\", \"-in\", path, \"-noout\", \"-text\"],\n658             capture_output=True, text=True\n659         )\n660         text = proc.stdout or proc.stderr\n",
+      "col_offset": 15,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 656,
+      "line_range": [
+        656,
+        657,
+        658,
+        659
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1155         fallback_err = None\n1156         openssh_proc = subprocess.run(\n1157             [\"ssh-keygen\", \"-i\", \"-m\", \"PKCS8\", \"-f\", pem_path],\n1158             capture_output=True,\n1159             text=True\n1160         )\n1161         openssh_pub = openssh_proc.stdout.strip()\n",
+      "col_offset": 23,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1156,
+      "line_range": [
+        1156,
+        1157,
+        1158,
+        1159,
+        1160
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1155         fallback_err = None\n1156         openssh_proc = subprocess.run(\n1157             [\"ssh-keygen\", \"-i\", \"-m\", \"PKCS8\", \"-f\", pem_path],\n1158             capture_output=True,\n1159             text=True\n1160         )\n1161         openssh_pub = openssh_proc.stdout.strip()\n",
+      "col_offset": 23,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1156,
+      "line_range": [
+        1156,
+        1157,
+        1158,
+        1159,
+        1160
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1163             try:\n1164                 openssh_pub = subprocess.run(\n1165                     [\"ssh-keygen\", \"-i\", \"-m\", \"PEM\", \"-f\", pem_path],\n1166                     check=True,\n1167                     capture_output=True,\n1168                     text=True\n1169                 ).stdout.strip()\n1170             except subprocess.CalledProcessError as e:\n",
+      "col_offset": 30,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1164,
+      "line_range": [
+        1164,
+        1165,
+        1166,
+        1167,
+        1168,
+        1169
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1163             try:\n1164                 openssh_pub = subprocess.run(\n1165                     [\"ssh-keygen\", \"-i\", \"-m\", \"PEM\", \"-f\", pem_path],\n1166                     check=True,\n1167                     capture_output=True,\n1168                     text=True\n1169                 ).stdout.strip()\n1170             except subprocess.CalledProcessError as e:\n",
+      "col_offset": 30,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1164,
+      "line_range": [
+        1164,
+        1165,
+        1166,
+        1167,
+        1168,
+        1169
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1198             try:\n1199                 rfc4716_pub = subprocess.run(\n1200                     [\"ssh-keygen\", \"-e\", \"-m\", \"RFC4716\", \"-f\", tmp_pub_path],\n1201                     check=True,\n1202                     capture_output=True,\n1203                     text=True\n1204                 ).stdout.strip()\n1205                 if rfc4716_pub:\n",
+      "col_offset": 30,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1199,
+      "line_range": [
+        1199,
+        1200,
+        1201,
+        1202,
+        1203,
+        1204
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1198             try:\n1199                 rfc4716_pub = subprocess.run(\n1200                     [\"ssh-keygen\", \"-e\", \"-m\", \"RFC4716\", \"-f\", tmp_pub_path],\n1201                     check=True,\n1202                     capture_output=True,\n1203                     text=True\n1204                 ).stdout.strip()\n1205                 if rfc4716_pub:\n",
+      "col_offset": 30,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1199,
+      "line_range": [
+        1199,
+        1200,
+        1201,
+        1202,
+        1203,
+        1204
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1241             try:\n1242                 rfc4716_pub = subprocess.run(\n1243                     [\"ssh-keygen\", \"-e\", \"-m\", \"RFC4716\", \"-f\", tmp_pub_path],\n1244                     check=True,\n1245                     capture_output=True,\n1246                     text=True\n1247                 ).stdout.strip()\n1248                 if rfc4716_pub:\n",
+      "col_offset": 30,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1242,
+      "line_range": [
+        1242,
+        1243,
+        1244,
+        1245,
+        1246,
+        1247
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1241             try:\n1242                 rfc4716_pub = subprocess.run(\n1243                     [\"ssh-keygen\", \"-e\", \"-m\", \"RFC4716\", \"-f\", tmp_pub_path],\n1244                     check=True,\n1245                     capture_output=True,\n1246                     text=True\n1247                 ).stdout.strip()\n1248                 if rfc4716_pub:\n",
+      "col_offset": 30,
+      "end_col_offset": 17,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1242,
+      "line_range": [
+        1242,
+        1243,
+        1244,
+        1245,
+        1246,
+        1247
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1279     }\n1280     rsa_proc = subprocess.run(\n1281         [\"openssl\", \"rsa\", \"-in\", pem_path, \"-traditional\"],\n1282         capture_output=True,\n1283         text=True\n1284     )\n1285     if rsa_proc.returncode == 0 and rsa_proc.stdout.strip():\n",
+      "col_offset": 15,
+      "end_col_offset": 5,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1280,
+      "line_range": [
+        1280,
+        1281,
+        1282,
+        1283,
+        1284
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1279     }\n1280     rsa_proc = subprocess.run(\n1281         [\"openssl\", \"rsa\", \"-in\", pem_path, \"-traditional\"],\n1282         capture_output=True,\n1283         text=True\n1284     )\n1285     if rsa_proc.returncode == 0 and rsa_proc.stdout.strip():\n",
+      "col_offset": 15,
+      "end_col_offset": 5,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1280,
+      "line_range": [
+        1280,
+        1281,
+        1282,
+        1283,
+        1284
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1287         return formats\n1288     ec_proc = subprocess.run(\n1289         [\"openssl\", \"ec\", \"-in\", pem_path],\n1290         capture_output=True,\n1291         text=True\n1292     )\n1293     if ec_proc.returncode == 0 and ec_proc.stdout.strip():\n",
+      "col_offset": 14,
+      "end_col_offset": 5,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1288,
+      "line_range": [
+        1288,
+        1289,
+        1290,
+        1291,
+        1292
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1287         return formats\n1288     ec_proc = subprocess.run(\n1289         [\"openssl\", \"ec\", \"-in\", pem_path],\n1290         capture_output=True,\n1291         text=True\n1292     )\n1293     if ec_proc.returncode == 0 and ec_proc.stdout.strip():\n",
+      "col_offset": 14,
+      "end_col_offset": 5,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1288,
+      "line_range": [
+        1288,
+        1289,
+        1290,
+        1291,
+        1292
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1385                         cmd = [\"openssl\", \"pkey\", \"-in\", path, \"-noout\", \"-text\"]\n1386                         proc = subprocess.run(cmd, capture_output=True, text=True)\n1387                         out, err = proc.stdout, proc.stderr\n",
+      "col_offset": 31,
+      "end_col_offset": 82,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1386,
+      "line_range": [
+        1386
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1390                         cmd = [\"openssl\", \"pkey\", \"-pubin\", \"-in\", path, \"-noout\", \"-text\"]\n1391                         proc = subprocess.run(cmd, capture_output=True, text=True)\n1392                         out, err = proc.stdout, proc.stderr\n",
+      "col_offset": 31,
+      "end_col_offset": 82,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1391,
+      "line_range": [
+        1391
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1396                             cmd = [\"openssl\", \"ocsp\", \"-respin\", path, \"-noout\", \"-text\", \"-noverify\"]\n1397                             proc = subprocess.run(cmd, capture_output=True, text=True)\n1398                             out, err = proc.stdout, proc.stderr\n",
+      "col_offset": 35,
+      "end_col_offset": 86,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1397,
+      "line_range": [
+        1397
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1401                             cmd = [\"openssl\", \"ocsp\", \"-respin\", \"-\", \"-text\", \"-noverify\"]\n1402                             proc = subprocess.run(cmd, input=der, capture_output=True)\n1403                             out = proc.stdout.decode(\"utf-8\", errors=\"ignore\")\n",
+      "col_offset": 35,
+      "end_col_offset": 86,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1402,
+      "line_range": [
+        1402
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1408                             cmd = [\"openssl\", \"ocsp\", \"-reqin\", path, \"-noout\", \"-text\", \"-noverify\"]\n1409                             proc = subprocess.run(cmd, capture_output=True, text=True)\n1410                             out, err = proc.stdout, proc.stderr\n",
+      "col_offset": 35,
+      "end_col_offset": 86,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1409,
+      "line_range": [
+        1409
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1413                             cmd = [\"openssl\", \"ocsp\", \"-reqin\", \"-\", \"-text\", \"-noverify\"]\n1414                             proc = subprocess.run(cmd, input=der, capture_output=True)\n1415                             out = proc.stdout.decode(\"utf-8\", errors=\"ignore\")\n",
+      "col_offset": 35,
+      "end_col_offset": 86,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1414,
+      "line_range": [
+        1414
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1419                         cmd = [\"openssl\", *subcmd, path]\n1420                         proc = subprocess.run(cmd, capture_output=True, text=True)\n1421                         out, err = proc.stdout, proc.stderr\n",
+      "col_offset": 31,
+      "end_col_offset": 82,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1420,
+      "line_range": [
+        1420
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1427                             cmd = [\"openssl\", subcmd[0], \"-inform\", \"DER\", \"-in\", path] + subcmd[1:]\n1428                         proc = subprocess.run(cmd, capture_output=True, text=True)\n1429                         out, err = proc.stdout, proc.stderr\n",
+      "col_offset": 31,
+      "end_col_offset": 82,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1428,
+      "line_range": [
+        1428
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1704         # Run the OpenSSL command to get the raw CRL details.\n1705         proc = subprocess.Popen(\n1706             [\"openssl\", \"crl\", \"-noout\", \"-text\", \"-in\", app.config[\"CRL_PATH\"] ],\n1707             stdout=subprocess.PIPE,\n1708             stderr=subprocess.PIPE\n1709         )\n1710         stdout, stderr = proc.communicate()\n",
+      "col_offset": 15,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 1705,
+      "line_range": [
+        1705,
+        1706,
+        1707,
+        1708,
+        1709
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "1704         # Run the OpenSSL command to get the raw CRL details.\n1705         proc = subprocess.Popen(\n1706             [\"openssl\", \"crl\", \"-noout\", \"-text\", \"-in\", app.config[\"CRL_PATH\"] ],\n1707             stdout=subprocess.PIPE,\n1708             stderr=subprocess.PIPE\n1709         )\n1710         stdout, stderr = proc.communicate()\n",
+      "col_offset": 15,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 1705,
+      "line_range": [
+        1705,
+        1706,
+        1707,
+        1708,
+        1709
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1926                 )\n1927             except Exception:\n1928                 pass\n1929             flash(\"Policy created\", \"success\")\n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 1927,
+      "line_range": [
+        1927,
+        1928
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "1998                 )\n1999             except Exception:\n2000                 pass\n2001             flash(\"Policy updated\", \"success\")\n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 1999,
+      "line_range": [
+        1999,
+        2000
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "2024             )\n2025         except Exception:\n2026             pass\n2027         flash(\"Policy deleted\", \"success\")\n",
+      "col_offset": 8,
+      "end_col_offset": 16,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 2025,
+      "line_range": [
+        2025,
+        2026
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "2333             try:\n2334                 subprocess.run(cmd, check=True, capture_output=True, text=True)\n2335                 app.logger.trace(f\"[L2011] submit: OpenSSL command executed successfully\")\n",
+      "col_offset": 16,
+      "end_col_offset": 79,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 2334,
+      "line_range": [
+        2334
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "2428             ])\n2429             subprocess.run(cmd, check=True, capture_output=True, text=True)\n2430     except subprocess.CalledProcessError as e:\n",
+      "col_offset": 12,
+      "end_col_offset": 75,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 2429,
+      "line_range": [
+        2429
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "2674         # Extract public key from certificate\n2675         proc = subprocess.run(\n2676             [\"openssl\", \"x509\", \"-in\", cert_path, \"-pubkey\", \"-noout\"],\n2677             capture_output=True,\n2678             text=True,\n2679         )\n2680         if proc.returncode != 0:\n",
+      "col_offset": 15,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 2675,
+      "line_range": [
+        2675,
+        2676,
+        2677,
+        2678,
+        2679
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "2674         # Extract public key from certificate\n2675         proc = subprocess.run(\n2676             [\"openssl\", \"x509\", \"-in\", cert_path, \"-pubkey\", \"-noout\"],\n2677             capture_output=True,\n2678             text=True,\n2679         )\n2680         if proc.returncode != 0:\n",
+      "col_offset": 15,
+      "end_col_offset": 9,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 2675,
+      "line_range": [
+        2675,
+        2676,
+        2677,
+        2678,
+        2679
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "2697         try:\n2698             pub_proc = subprocess.run(\n2699                 [\"openssl\", \"pkey\", \"-in\", key_path, \"-pubout\"],\n2700                 capture_output=True,\n2701                 text=True,\n2702             )\n2703             if pub_proc.returncode != 0:\n",
+      "col_offset": 23,
+      "end_col_offset": 13,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 2698,
+      "line_range": [
+        2698,
+        2699,
+        2700,
+        2701,
+        2702
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "2697         try:\n2698             pub_proc = subprocess.run(\n2699                 [\"openssl\", \"pkey\", \"-in\", key_path, \"-pubout\"],\n2700                 capture_output=True,\n2701                 text=True,\n2702             )\n2703             if pub_proc.returncode != 0:\n",
+      "col_offset": 23,
+      "end_col_offset": 13,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 2698,
+      "line_range": [
+        2698,
+        2699,
+        2700,
+        2701,
+        2702
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "2760     try:\n2761         proc = subprocess.run(cmd, capture_output=True, text=True)\n2762         if proc.returncode != 0:\n",
+      "col_offset": 15,
+      "end_col_offset": 66,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 2761,
+      "line_range": [
+        2761
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "2892         log_user_event('reset_password', current_user.id, {'by': current_user.id, 'username': current_user.username, 'actor_username': current_user.username})\n2893     except Exception:\n2894         pass\n2895     flash(\"Password changed successfully.\", \"success\")\n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "C:\\Users\\uzi\\Downloads\\projects\\PKI\\app.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 2893,
+      "line_range": [
+        2893,
+        2894
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    }
+  ]
+}

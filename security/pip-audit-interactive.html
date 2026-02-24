@@ -1,0 +1,212 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Dependency Vulnerability Report</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1f2933;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --chip: #f3f4f6;
+    }
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: var(--text); background: var(--bg); }
+    h1 { margin: 0 0 6px; }
+    .meta { color: var(--muted); margin-bottom: 16px; }
+    .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .spacer { flex: 1 1 auto; }
+    input[type="text"] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; min-width: 240px; }
+    select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+    th { text-align: left; white-space: nowrap; cursor: pointer; }
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--chip); font-size: 12px; }
+    .muted { color: var(--muted); }
+    .count { margin-left: auto; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>Dependency Vulnerability Report</h1>
+  <div class="meta">Known vulnerabilities in Python dependencies from requirements, with severity and fix-version guidance.</div>
+  <div class="meta">Source: pip-audit.json | Generated at: manual | Version: 2.1.0</div>
+  <div class="controls">
+    <label>
+      Show:
+      <select id="pageSizeSelect" onchange="changePageSize()">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+    <span class="count" id="pageInfo"></span>
+    <input id="filterInput" type="text" placeholder="Filter by package, vuln id, or severity" onkeyup="applyFilter()" />
+    <label>
+      Severity:
+      <select id="severitySelect" onchange="applyFilter()">
+        <option value="">All</option>
+        <option value="none">None (No vulnerabilities)</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="unreported">Unspecified</option>
+      </select>
+    </label>
+    <span class="spacer"></span>
+    <button type="button" onclick="previousPage()">Previous</button>
+    <button type="button" onclick="nextPage()">Next</button>
+    <span class="count" id="resultCount"></span>
+  </div>
+  <table id="auditTable">
+    <thead>
+      <tr>
+        <th onclick="sortTable(0)">Package</th>
+        <th onclick="sortTable(1)">Version</th>
+        <th onclick="sortTable(2)">Vulnerability ID</th>
+        <th onclick="sortTable(3)">Severity</th>
+        <th onclick="sortTable(4)">Published</th>
+        <th onclick="sortTable(5)">Score</th>
+        <th onclick="sortTable(6)">Fix Versions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-severity="critical" data-severity-rank="4" data-published="2026-01-27T16:16:14.257"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-15467" target="_blank" rel="noopener noreferrer">CVE-2025-15467</a></td><td><span class="chip">Critical</span></td><td>2026-01-27 16:16</td><td>9.8</td><td></td></tr>
+<tr data-severity="high" data-severity-rank="3" data-published="2026-02-10T22:17:00.307"><td>cryptography</td><td>46.0.3</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-26007" target="_blank" rel="noopener noreferrer">CVE-2026-26007</a></td><td><span class="chip">High</span></td><td>2026-02-10 22:17</td><td>8.2</td><td>46.0.5</td></tr>
+<tr data-severity="high" data-severity-rank="3" data-published="2026-01-27T16:16:34.317"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-69420" target="_blank" rel="noopener noreferrer">CVE-2025-69420</a></td><td><span class="chip">High</span></td><td>2026-01-27 16:16</td><td>7.5</td><td></td></tr>
+<tr data-severity="high" data-severity-rank="3" data-published="2026-01-27T16:16:34.437"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-69421" target="_blank" rel="noopener noreferrer">CVE-2025-69421</a></td><td><span class="chip">High</span></td><td>2026-01-27 16:16</td><td>7.5</td><td></td></tr>
+<tr data-severity="high" data-severity-rank="3" data-published="2019-01-30T22:29:00.497"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-0190" target="_blank" rel="noopener noreferrer">CVE-2019-0190</a></td><td><span class="chip">High</span></td><td>2019-01-30 22:29</td><td>7.5</td><td></td></tr>
+<tr data-severity="high" data-severity-rank="3" data-published="2026-01-27T16:16:34.113"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-69419" target="_blank" rel="noopener noreferrer">CVE-2025-69419</a></td><td><span class="chip">High</span></td><td>2026-01-27 16:16</td><td>7.4</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-02-21T06:17:00.710"><td>werkzeug</td><td>3.1.5</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-27199" target="_blank" rel="noopener noreferrer">CVE-2026-27199</a></td><td><span class="chip">Medium</span></td><td>2026-02-21 06:17</td><td>6.3</td><td>3.1.6</td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:14.093"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-11187" target="_blank" rel="noopener noreferrer">CVE-2025-11187</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>6.1</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:14.400"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-15468" target="_blank" rel="noopener noreferrer">CVE-2025-15468</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>5.9</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:15.777"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-66199" target="_blank" rel="noopener noreferrer">CVE-2025-66199</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>5.9</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:14.523"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-15469" target="_blank" rel="noopener noreferrer">CVE-2025-15469</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>5.5</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:35.430"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-22795" target="_blank" rel="noopener noreferrer">CVE-2026-22795</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>5.5</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:35.543"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-22796" target="_blank" rel="noopener noreferrer">CVE-2026-22796</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>5.3</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:15.900"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-68160" target="_blank" rel="noopener noreferrer">CVE-2025-68160</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>4.7</td><td></td></tr>
+<tr data-severity="medium" data-severity-rank="2" data-published="2026-01-27T16:16:33.253"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-69418" target="_blank" rel="noopener noreferrer">CVE-2025-69418</a></td><td><span class="chip">Medium</span></td><td>2026-01-27 16:16</td><td>4.0</td><td></td></tr>
+<tr data-severity="low" data-severity-rank="1" data-published="2026-02-21T06:17:00.910"><td>flask</td><td>3.1.2</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-27205" target="_blank" rel="noopener noreferrer">CVE-2026-27205</a></td><td><span class="chip">Low</span></td><td>2026-02-21 06:17</td><td>2.3</td><td>3.1.3</td></tr>
+<tr data-severity="unreported" data-severity-rank="0" data-published="2009-10-23T19:30:00.203"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2009-3765" target="_blank" rel="noopener noreferrer">CVE-2009-3765</a></td><td><span class="chip">Unspecified</span></td><td>2009-10-23 19:30</td><td>6.8</td><td></td></tr>
+<tr data-severity="unreported" data-severity-rank="0" data-published="2009-10-23T19:30:00.233"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2009-3766" target="_blank" rel="noopener noreferrer">CVE-2009-3766</a></td><td><span class="chip">Unspecified</span></td><td>2009-10-23 19:30</td><td>6.8</td><td></td></tr>
+<tr data-severity="unreported" data-severity-rank="0" data-published="2009-06-16T21:00:00.343"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2009-1390" target="_blank" rel="noopener noreferrer">CVE-2009-1390</a></td><td><span class="chip">Unspecified</span></td><td>2009-06-16 21:00</td><td>6.8</td><td></td></tr>
+<tr data-severity="unreported" data-severity-rank="0" data-published="2009-10-23T19:30:00.250"><td>openssl</td><td>3.6.0</td><td><a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2009-3767" target="_blank" rel="noopener noreferrer">CVE-2009-3767</a></td><td><span class="chip">Unspecified</span></td><td>2009-10-23 19:30</td><td>4.3</td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>flask-sqlalchemy</td><td>3.1.1</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>flask-login</td><td>0.6.3</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>asn1crypto</td><td>1.5.1</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>sqlalchemy</td><td>2.0.44</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>jinja2</td><td>3.1.6</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>markupsafe</td><td>3.0.3</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>markdown</td><td>3.7</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>itsdangerous</td><td>2.2.0</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>click</td><td>8.3.1</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>blinker</td><td>1.9.0</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>cffi</td><td>2.0.0</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>pycparser</td><td>2.23</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>greenlet</td><td>3.2.4</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>typing-extensions</td><td>4.15.0</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>colorama</td><td>0.4.6</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>oscrypto</td><td>1.3.0</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>tzdata</td><td>2025.2</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>hvac</td><td>2.1.0</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>requests</td><td>2.32.5</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>charset-normalizer</td><td>3.4.4</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>idna</td><td>3.11</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>urllib3</td><td>2.6.3</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>certifi</td><td>2025.11.12</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>ldap3</td><td>2.9.1</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+<tr data-severity="none" data-severity-rank="-1" data-published=""><td>pyasn1</td><td>0.6.2</td><td>-</td><td><span class="chip">None</span></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+<script>
+  let sortDirections = {};
+  let currentPage = 1;
+  let pageSize = 10;
+  let filteredRows = [];
+
+  function applyFilter(resetPage = true) {
+    const input = document.getElementById('filterInput').value.toLowerCase();
+    const severity = document.getElementById('severitySelect').value.toLowerCase();
+    const tbody = document.querySelector('#auditTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    filteredRows = rows.filter(row => {
+      const text = row.textContent.toLowerCase();
+      const sev = row.getAttribute('data-severity') || 'unknown';
+      const matchesText = text.indexOf(input) > -1;
+      const matchesSev = !severity || sev === severity;
+      return matchesText && matchesSev;
+    });
+    document.getElementById('resultCount').textContent = 'Matched ' + filteredRows.length + ' of ' + rows.length;
+    if (resetPage) currentPage = 1;
+    renderPage();
+  }
+
+  function renderPage() {
+    const tbody = document.querySelector('#auditTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const total = filteredRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    currentPage = Math.min(Math.max(1, currentPage), totalPages);
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    rows.forEach(row => row.style.display = 'none');
+    filteredRows.slice(start, end).forEach(row => row.style.display = '');
+    const shownStart = total === 0 ? 0 : start + 1;
+    const shownEnd = Math.min(end, total);
+    document.getElementById('pageInfo').textContent = 'Page ' + currentPage + '/' + totalPages + ' | Showing ' + shownStart + '-' + shownEnd;
+  }
+
+  function sortTable(columnIndex) {
+    const tbody = document.querySelector('#auditTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const isAscending = sortDirections[columnIndex] !== 'asc';
+    sortDirections[columnIndex] = isAscending ? 'asc' : 'desc';
+    rows.sort((a, b) => {
+      const aText = a.cells[columnIndex].textContent.trim().toLowerCase();
+      const bText = b.cells[columnIndex].textContent.trim().toLowerCase();
+      if (columnIndex === 3) {
+        const aRank = parseInt(a.getAttribute('data-severity-rank') || '0', 10);
+        const bRank = parseInt(b.getAttribute('data-severity-rank') || '0', 10);
+        return isAscending ? aRank - bRank : bRank - aRank;
+      }
+      if (columnIndex === 5) {
+        const aNum = parseFloat(aText) || 0;
+        const bNum = parseFloat(bText) || 0;
+        return isAscending ? aNum - bNum : bNum - aNum;
+      }
+      if (columnIndex === 4) {
+        const aTs = Date.parse(a.getAttribute('data-published') || aText) || 0;
+        const bTs = Date.parse(b.getAttribute('data-published') || bText) || 0;
+        return isAscending ? aTs - bTs : bTs - aTs;
+      }
+      if (aText < bText) return isAscending ? -1 : 1;
+      if (aText > bText) return isAscending ? 1 : -1;
+      return 0;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+    applyFilter(false);
+  }
+
+  function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSizeSelect').value, 10) || 10;
+    applyFilter(true);
+  }
+
+  function nextPage() {
+    currentPage += 1;
+    renderPage();
+  }
+
+  function previousPage() {
+    currentPage -= 1;
+    renderPage();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    sortDirections[3] = 'asc';
+    sortTable(3); // first call toggles to desc: critical/high -> low
+  });
+</script>
+</body>
+</html>

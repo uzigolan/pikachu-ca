@@ -1,7 +1,15 @@
-{% extends "layout.html" %}
+﻿{% extends "layout.html" %}
 {% block content %}
   <h1 class="mb-4">Server APIs &amp; CLI Commands</h1>
-  <table class="table table-bordered table-hover small">
+  <div class="alert {% if is_enterprise %}alert-success{% else %}alert-info{% endif %} py-2">
+    <strong>Current Edition:</strong>
+    {% if is_enterprise %}
+      Enterprise
+    {% else %}
+      Community
+    {% endif %}
+  </div>
+  <table class="table table-bordered table-hover small" data-testid="api-table">
     <thead class="thead-dark">
       <tr>
         <th>Type</th>
@@ -13,38 +21,38 @@
     <tbody>
       <!-- CA General -->
       <tr>
-        <td rowspan="5">CA General</td>
+        <td rowspan="5">CA General<br><small class="text-muted">Community + Enterprise</small></td>
         <td>Download CA Chain</td>
         <td>
-          <pre>curl -k https://pikachu-ca.iot-rad.com:5443/downloads/chain</pre>
+          <pre>curl -k https://pkisquire-ca.iot-rad.com/downloads/chain</pre>
         </td>
         <td>Returns full CA chain file</td>
       </tr>
       <tr>
         <td>Download CRL</td>
         <td>
-          <pre>curl -k https://pikachu-ca.iot-rad.com:4443/downloads/crl</pre>
+          <pre>curl -k https://pkisquire-ca.iot-rad.com/downloads/crl</pre>
         </td>
         <td>Generates and downloads latest Certificate Revocation List</td>
       </tr>
       <tr>
         <td>Certificate Status</td>
         <td>
-          <pre>curl -k https://pikachu-ca.iot-rad.com:4443/status/0xc75f573d9cb2b581</pre>
+          <pre>curl -k https://pkisquire-ca.iot-rad.com/status/0xc75f573d9cb2b581</pre>
         </td>
         <td>Returns status as valid, revoked, or not found in JSON</td>
       </tr>
       <tr>
         <td>Expired Certificates</td>
         <td>
-          <pre>curl -k https://pikachu-ca.iot-rad.com:5443/expired</pre>
+          <pre>curl -k https://pkisquire-ca.iot-rad.com/expired</pre>
         </td>
         <td>Returns list of certificate IDs that are expired</td>
       </tr>
       <tr>
         <td>Download CSR</td>
         <td>
-          <pre>curl -k https://pikachu-ca.iot-rad.com:5443/requests/1/download</pre>
+          <pre>curl -k https://pkisquire-ca.iot-rad.com/requests/1/download</pre>
         </td>
         <td>Serves saved CSR if available</td>
       </tr>
@@ -52,50 +60,59 @@
 
       <!-- SCEP -->
       <tr>
-        <td rowspan="3">SCEP</td>
-        <td>SCEP CRL</td>
+        <td rowspan="4">SCEP<br><small class="text-muted">Enterprise only</small></td>
+        <td>SCEP GetCaps</td>
         <td>
-          <pre>sscep getcrl \
-  -u http://pikachu-ca.iot-rad.com:8090/scep \
-  -c ca_rsa.crt \
-  -k local.key \
-  -l local.crt \
-  -w crl.pem</pre>
+          <pre>sscep getcaps -u http://localhost:8090/scep</pre>
+          <pre>curl http://localhost:8090/scep?operation=GetCACaps</pre>
         </td>
-        <td>Not Supported</td>
+        <td>Query server capabilities (AES, DES3, POSTPKIOperation, SHA-256, etc.)</td>
+      </tr>
+      <tr>
+        <td>SCEP GetCA</td>
+        <td>
+          <pre>sscep getca \
+  -u http://localhost:8090/scep \
+  -c ca.crt</pre>
+        </td>
+        <td>Download CA certificate (prerequisite: RSA-based SubCA)</td>
       </tr>
       <tr>
         <td>SCEP Enrollment</td>
         <td>
-          <pre>sscep enroll -d -v \
-  -u http://pikachu-ca.iot-rad.com:8090/scep \
-  -c rad_ca_sub_rsa.crt \
-  -k client1.key \
-  -r client1.csr \
-  -l client1.crt</pre>
+          <pre>sscep enroll \
+  -u http://localhost:8090/scep \
+  -k client.key \
+  -r client.csr \
+  -c ca.crt \
+  -l client.crt \
+  -E aes \
+  -S sha256</pre>
         </td>
-        <td>prerequisite RSA based Sub CA @Work</td>
+        <td>Enroll certificate via SCEP. Options: -E (encryption: aes|3des), -S (signature: sha256|sha512)</td>
       </tr>
       <tr>
-        <td>SCEP CA Certs</td>
+        <td>Challenge Password (API Token)</td>
         <td>
-          <pre>sscep getca -u http://pikachu-ca.iot-rad.com:8090/scep -c cap.pem</pre>
+          <pre>curl -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  http://localhost:80/api/challenge_passwords</pre>
         </td>
-        <td>prerequisite RSA based Sub CA</td>
+        <td>Generates a challenge password tied to the token's user. Response: value, expires_at, validity, user_id.</td>
       </tr>
 
       <!-- EST -->
       <tr>
-        <td rowspan="2">EST</td>
+        <td rowspan="4">EST<br><small class="text-muted">Enterprise only</small></td>
         <td>EST Enrollment</td>
         <td>
           <pre>curl -k -X POST \
   --data-binary @etx.csr.der \
-  https://pikachu-ca.iot-rad.com:4443/.well-known/est/simpleenroll \
+  https://pkisquire-ca.iot-rad.com/.well-known/est/simpleenroll \
   -H "Content-Type: application/pkcs10" \
   --output etx.crt.p7</pre>
     <pre>estclient enroll \
-  -server pikachu-ca.iot-rad.com:4443 \
+  -server pkisquire-ca.iot-rad.com \
   -insecure \
   -csr etx.csr \
   -out etx.crt</pre>
@@ -103,29 +120,61 @@
         <td>Using curl accepts DER CSR and returns signed cert in PKCS#7</td>
       </tr>
       <tr>
+        <td>EST Enrollment (mTLS)</td>
+        <td>
+          <pre>curl --cert https.crt --key https.key \
+  -X POST \
+  --data-binary @etx.csr.der \
+  https://pkisquire-ca.iot-rad.com:4443/.well-known/est/simpleenroll \
+  -H "Content-Type: application/pkcs10" \
+  --output etx.crt.p7</pre>
+    <pre>estclient enroll \
+  -server pkisquire-ca.iot-rad.com:4443 \
+  -cert https.crt \
+  -key https.key \
+  -csr etx.csr \
+  -out etx.crt</pre>
+        </td>
+        <td>Mutual TLS authentication with client certificate on port 4443</td>
+      </tr>
+      <tr>
         <td>EST CA Certs</td>
         <td>
           <pre>curl -k \
-  https://pikachu-ca.iot-rad.com:4443/.well-known/est/cacerts \
+  https://pkisquire-ca.iot-rad.com/.well-known/est/cacerts \
   --output chain.crt</pre>
 <pre>estclient cacerts \
-  -server pikachu-ca.iot-rad.com:4443 \
+  -server pkisquire-ca.iot-rad.com \
   -insecure \
   -out ca.pem</pre>
         </td>
         <td>Returns CA chain in PKCS#7 format</td>
       </tr>
+      <tr>
+        <td>EST CA Certs (mTLS)</td>
+        <td>
+          <pre>curl --cert https.crt --key https.key \
+  https://pkisquire-ca.iot-rad.com:4443/.well-known/est/cacerts \
+  --output chain.crt</pre>
+<pre>estclient cacerts \
+  -server pkisquire-ca.iot-rad.com:4443 \
+  -cert https.crt \
+  -key https.key \
+  -out ca.pem</pre>
+        </td>
+        <td>Mutual TLS authentication with client certificate on port 4443</td>
+      </tr>
 
       <!-- OCSP -->
       <tr>
-        <td>OCSP</td>
+        <td>OCSP<br><small class="text-muted">Enterprise only</small></td>
         <td>OCSP Responder</td>
         <td>
           <pre>openssl ocsp \
   -reqout ocsp_request.der \
   -issuer rad_ca_sub.crt \
   -cert valid.crt \
-  -url https://pikachu-ca.iot-rad.com:4443/ocsp \
+  -url http://pkisquire-ca.iot-rad.com/ocsp \
   -resp_text \
   -respout ocsp_response.der</pre>
         </td>
@@ -134,4 +183,5 @@
     </tbody>
   </table>
 {% endblock %}
+
 

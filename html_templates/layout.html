@@ -1,16 +1,16 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Pikachu CA (R&D Only)</title>
-
-  <title>{% block title %}Pikachu CA R&D Only!{% endblock %}</title>
+  <title>{% block title %}{{ product_name|replace('\n', ' ') }}{% endblock %}</title>
 
   <!-- FAVICONS -->
   <link rel="icon"
           type="image/png"
           sizes="32x32"
           href="{{ url_for('static', filename='favicon-32x32.png') }}">
+  <link rel="shortcut icon"
+          href="{{ url_for('favicon_ico') }}">
   <link rel="icon"
           type="image/png"
           sizes="16x16"
@@ -18,19 +18,786 @@
 
   {% block head %}{% endblock %}
 
-
-
-
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <!-- Bootstrap CSS (via CDN) -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap">
   <style>
-    pre { background-color: #f8f9fa; padding: 1em; border: 1px solid #ddd; border-radius: 4px; }
+    :root {
+      --bg: #f3f4f7;
+      --bg-accent: #e6eef3;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #5b6b7f;
+      --accent: #0f766e;
+      --accent-2: #1d4ed8;
+      --danger: #b91c1c;
+      --success: #15803d;
+      --warning: #b45309;
+    }
+
+    body {
+      font-family: "Manrope", "Segoe UI", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 10%, #ffffff 0%, var(--bg) 35%, var(--bg-accent) 100%);
+      min-height: 100vh;
+    }
+
+    h1, h2, h3, h4, h5, .navbar-brand {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      letter-spacing: -0.02em;
+    }
+
+    pre {
+      background-color: var(--surface-2);
+      padding: 1em;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .app-navbar {
+      background: rgba(255, 255, 255, 0.9);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(10px);
+    }
+
+    .app-navbar .navbar-brand {
+      color: var(--text);
+      font-weight: 700;
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .app-navbar .navbar-brand-text {
+      display: inline-block;
+      line-height: 1.05;
+      white-space: pre;
+    }
+
+    .product-name-display {
+      white-space: pre;
+    }
+
+    .app-navbar .nav-link {
+      color: var(--muted);
+      font-weight: 500;
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+      margin: 0 0.1rem;
+    }
+
+    .app-navbar .nav-link:hover,
+    .app-navbar .nav-link.active {
+      color: var(--text);
+      background: #e8f3f1;
+    }
+
+    .app-shell {
+      padding: 28px 0 48px;
+    }
+
+    .app-container {
+      max-width: 1520px;
+      padding-left: 32px;
+      padding-right: 32px;
+    }
+
+    .content-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+      padding: 24px;
+    }
+
+    .server-ext-content {
+      background: #f8f9fa;
+      border: 1px solid #ccc;
+      padding: 8px;
+      min-height: 120px;
+      font-size: 12px;
+    }
+
+    .page-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .page-subtitle {
+      color: var(--muted);
+      margin-bottom: 0;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .metric-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .search-input {
+      min-width: 240px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.55rem 0.75rem;
+      color: var(--text);
+    }
+
+    .filter-input-active {
+      background-color: #fff3cd;
+      color: #5c4a00;
+    }
+
+    .filter-input-active::placeholder {
+      color: #8a6b00;
+    }
+
+    .table-modern {
+      border-collapse: separate;
+      border-spacing: 0 10px;
+    }
+
+    .table-modern thead th {
+      border: none;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.6rem 1rem;
+    }
+
+    .table-modern tbody tr {
+      background: #ffffff;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .table-modern tbody td {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1rem;
+      vertical-align: middle;
+    }
+
+    .table-modern tbody tr td:first-child {
+      border-left: 1px solid var(--border);
+      border-top-left-radius: 12px;
+      border-bottom-left-radius: 12px;
+    }
+
+    .table-modern tbody tr td:last-child {
+      border-right: 1px solid var(--border);
+      border-top-right-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+
+    .status-valid { background: #e7f6ed; color: var(--success); }
+    .status-expired { background: #fff3d9; color: var(--warning); }
+    .status-revoked { background: #fde8e8; color: var(--danger); }
+
+    .badge-issuer {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+    }
+
+    .badge-issuer-est { background: #e0f2fe; color: #075985; }
+    .badge-issuer-scep { background: #fef3c7; color: #92400e; }
+    .badge-issuer-unknown { background: #eef2f7; color: var(--muted); }
+
+    .btn-soft {
+      background: #e8f3f1;
+      border: 1px solid #cfe7e3;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .btn-soft:hover { background: #d4ebe5; color: #0f5f58; }
+
+    .btn-ghost {
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: #ffffff;
+      font-weight: 600;
+    }
+
+    .btn-ghost:hover { background: #f1f5f9; }
+
+    .btn-danger-soft {
+      border: 1px solid #fecaca;
+      background: #fee2e2;
+      color: #7f1d1d;
+      font-weight: 600;
+    }
+
+    .btn-danger-soft:hover { background: #fecaca; }
+
+    .alert-error {
+      color: #721c24;
+      background-color: #f8d7da;
+      border-color: #f5c6cb;
+    }
+
+    .action-pill {
+      border-radius: 10px;
+    }
+
+    .enrollment-pill {
+      border-radius: 10px;
+    }
+
+    .app-meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    body.theme-classic {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #212529;
+      background: #ffffff;
+    }
+
+    body.theme-classic .app-navbar {
+      background: #343a40;
+      border-bottom: none;
+      box-shadow: none;
+    }
+
+    body.theme-classic .app-navbar .navbar-brand,
+    body.theme-classic .app-navbar .nav-link,
+    body.theme-classic .app-navbar .navbar-text a {
+      color: #f8f9fa;
+    }
+
+    body.theme-classic .app-navbar .navbar-text {
+      color: #f8f9fa;
+    }
+
+    body.theme-classic .app-navbar .nav-link.active,
+    body.theme-classic .app-navbar .nav-link:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+    }
+
+    body.theme-classic .content-card {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    body.theme-classic .page-title {
+      text-align: center;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+
+    body.theme-classic .page-subtitle {
+      display: none;
+    }
+
+    body.theme-classic .toolbar {
+      gap: 8px;
+    }
+
+    body.theme-classic .search-input {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 4px;
+      border-color: #ced4da;
+      padding: 0.4rem 0.6rem;
+    }
+
+    body.theme-classic .metric-grid {
+      display: none;
+    }
+
+    body.theme-classic .dashboard-page .metric-grid {
+      display: grid;
+    }
+
+    body.theme-classic .dashboard-page .content-card,
+    body.theme-classic .dashboard-page {
+      padding: 0;
+    }
+
+    body.theme-classic .table-modern {
+      border-collapse: collapse;
+      border-spacing: 0;
+    }
+
+    body.theme-classic .table-modern thead th {
+      color: #6c757d;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 0.8rem;
+      border-bottom: 2px solid #dee2e6;
+    }
+
+    body.theme-classic .table-modern tbody tr {
+      background: #ffffff;
+      box-shadow: none;
+    }
+
+    body.theme-classic .table-modern tbody tr:nth-child(even) {
+      background: #f5f5f5;
+    }
+
+    body.theme-classic .table-modern tbody td {
+      border: 1px solid #dee2e6;
+      border-left: none;
+      border-right: none;
+    }
+
+    body.theme-classic .table-modern tbody tr td:first-child,
+    body.theme-classic .table-modern tbody tr td:last-child {
+      border-left: none;
+      border-right: none;
+      border-radius: 0;
+    }
+
+    body.theme-classic .status-pill {
+      background: transparent;
+      padding: 0;
+      font-weight: 600;
+    }
+
+    body.theme-classic .status-valid { color: #28a745; }
+    body.theme-classic .status-expired { color: #fd7e14; }
+    body.theme-classic .status-revoked { color: #dc3545; }
+
+    body.theme-classic .badge-issuer-est { background: #28a745; color: #ffffff; }
+    body.theme-classic .badge-issuer-scep { background: #6f42c1; color: #ffffff; }
+    body.theme-classic .badge-issuer-unknown { background: #007bff; color: #ffffff; }
+
+    body.theme-classic .btn-ghost {
+      border-color: #17a2b8;
+      color: #ffffff;
+      background: #17a2b8;
+    }
+
+    body.theme-classic .btn-soft {
+      background: #ffc107;
+      border-color: #ffc107;
+      color: #212529;
+    }
+
+    body.theme-classic .btn-danger-soft {
+      background: #dc3545;
+      border-color: #dc3545;
+      color: #ffffff;
+    }
+
+    body.theme-classic .btn-ghost:hover,
+    body.theme-classic .btn-soft:hover,
+    body.theme-classic .btn-danger-soft:hover {
+      filter: brightness(0.95);
+    }
+
+    body.theme-color-midnight {
+      --bg: #0b1220;
+      --bg-accent: #111827;
+      --surface: #111827;
+      --surface-2: #0f172a;
+      --border: #1f2937;
+      --text: #ffffff;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #22d3ee;
+      --danger: #f87171;
+      --success: #4ade80;
+      --warning: #fbbf24;
+      background: radial-gradient(circle at 20% 10%, #0f172a 0%, #0b1220 45%, #020617 100%);
+    }
+
+    body.theme-color-midnight .app-navbar {
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    body.theme-color-midnight .app-navbar .navbar-brand,
+    body.theme-color-midnight .app-navbar .nav-link {
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .app-navbar .nav-link:visited,
+    body.theme-color-midnight .app-navbar .nav-link:focus,
+    body.theme-color-midnight .app-navbar .navbar-text a,
+    body.theme-color-midnight .app-navbar .navbar-text a:visited,
+    body.theme-color-midnight .app-navbar .navbar-text a:focus {
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .app-navbar .nav-link.active,
+    body.theme-color-midnight .app-navbar .nav-link:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: #e2f6ff;
+    }
+
+    body.theme-color-midnight .app-navbar .navbar-text {
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .content-card,
+    body.theme-color-midnight .metric-card {
+      background: var(--surface);
+      border-color: var(--border);
+      box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
+    }
+
+    body.theme-color-midnight pre {
+      background-color: var(--surface-2);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .server-ext-content {
+      background-color: var(--surface-2);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .table-modern tbody tr {
+      background: var(--surface);
+      box-shadow: 0 10px 18px rgba(2, 6, 23, 0.4);
+    }
+
+    body.theme-color-midnight .table-modern tbody td {
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .table-modern thead th {
+      color: var(--muted);
+    }
+
+    body.theme-color-midnight .table-modern thead th [id^="sort-"] {
+      color: #e2f6ff;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    body.theme-color-midnight .card,
+    body.theme-color-midnight .card-header,
+    body.theme-color-midnight .card-body,
+    body.theme-color-midnight .list-group-item,
+    body.theme-color-midnight .modal-content {
+      background-color: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    body.theme-color-midnight .table,
+    body.theme-color-midnight .table thead th,
+    body.theme-color-midnight .table tbody td {
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .table th,
+    body.theme-color-midnight .table td {
+      border-color: var(--border);
+    }
+
+    body.theme-color-midnight .form-control,
+    body.theme-color-midnight .form-control:focus,
+    body.theme-color-midnight .custom-select,
+    body.theme-color-midnight .custom-select:focus {
+      background-color: var(--surface-2);
+      color: var(--text);
+      border-color: var(--border);
+      box-shadow: none;
+    }
+
+    body.theme-color-midnight .filter-input-active {
+      background-color: rgba(56, 189, 248, 0.15);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .filter-input-active::placeholder {
+      color: var(--muted);
+    }
+
+    body.theme-color-midnight .input-group-text {
+      background-color: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    body.theme-color-midnight .text-muted {
+      color: var(--muted) !important;
+    }
+
+    body.theme-color-midnight .alert-error {
+      color: #fecaca;
+      background-color: rgba(127, 29, 29, 0.35);
+      border-color: rgba(248, 113, 113, 0.55);
+    }
+
+    body.theme-color-midnight a,
+    body.theme-color-midnight .page-link {
+      color: #7dd3fc;
+    }
+
+    body.theme-color-midnight .page-link,
+    body.theme-color-midnight .page-item.disabled .page-link {
+      background-color: var(--surface);
+      border-color: var(--border);
+    }
+
+    body.theme-color-midnight .btn-ghost {
+      color: var(--text);
+      background: transparent;
+      border-color: var(--border);
+    }
+
+    body.theme-color-midnight .btn-soft {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #e2f6ff;
+    }
+
+    body.theme-color-midnight .btn-soft:hover {
+      background: rgba(56, 189, 248, 0.32);
+      border-color: #7dd3fc;
+      color: #ffffff;
+    }
+
+    body.theme-color-midnight .status-valid {
+      background: rgba(34, 197, 94, 0.18);
+      color: #86efac;
+    }
+
+    body.theme-color-midnight .status-expired {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+    }
+
+    body.theme-color-midnight .status-revoked {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+    }
+
+    body.theme-color-midnight .badge-issuer-est {
+      background: rgba(56, 189, 248, 0.2);
+      color: #bae6fd;
+    }
+
+    body.theme-color-midnight .badge-issuer-scep {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fde68a;
+    }
+
+    body.theme-color-midnight .badge-issuer-unknown {
+      background: rgba(148, 163, 184, 0.2);
+      color: #e2e8f0;
+    }
+
+    body.theme-color-midnight .cert-actions .cert-action {
+      border-radius: 6px;
+      border-width: 1px;
+    }
+
+    body.theme-color-midnight .cert-action-view {
+      background: #38bdf8;
+      border-color: #38bdf8;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-download {
+      background: #4ade80;
+      border-color: #4ade80;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-copy {
+      background: #94a3b8;
+      border-color: #94a3b8;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-pfx {
+      background: #fbbf24;
+      border-color: #fbbf24;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-revoke {
+      background: #f87171;
+      border-color: #f87171;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-delete {
+      background: transparent;
+      border-color: #f87171;
+      color: #f87171;
+    }
+
+    body.theme-color-midnight .cert-actions .cert-action:hover {
+      filter: brightness(0.95);
+    }
+
+    body.theme-color-midnight .cert-action-delete:hover {
+      background: rgba(248, 113, 113, 0.15);
+    }
+
+    .floating-markers {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+      z-index: 1080;
+    }
+
+    .floating-marker-btn {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--text);
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 8px 12px;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+      cursor: pointer;
+    }
+
+    .floating-marker-btn:hover {
+      background: #e8f3f1;
+    }
+
+    body.theme-color-midnight .floating-marker-btn {
+      background: rgba(15, 23, 42, 0.96);
+      color: #e2f6ff;
+      border-color: #334155;
+      box-shadow: 0 10px 22px rgba(2, 6, 23, 0.55);
+    }
+
+    body.theme-color-midnight .floating-marker-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      color: #ffffff;
+      border-color: #38bdf8;
+    }
+
+    .floating-marker-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .floating-paths {
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2);
+      min-width: 190px;
+      overflow: hidden;
+      transition: opacity 0.16s ease;
+    }
+
+    .floating-path-link {
+      display: block;
+      padding: 8px 12px;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+    }
+
+    .floating-path-link:last-child {
+      border-bottom: 0;
+    }
+
+    .floating-path-link:hover {
+      background: #e8f3f1;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .floating-paths-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    body.theme-color-midnight .floating-paths {
+      background: rgba(15, 23, 42, 0.98);
+      border-color: #334155;
+      box-shadow: 0 14px 28px rgba(2, 6, 23, 0.6);
+    }
+
+    body.theme-color-midnight .floating-path-link {
+      color: #e2f6ff;
+      border-bottom-color: #1f2937;
+    }
+
+    body.theme-color-midnight .floating-path-link:hover {
+      background: rgba(56, 189, 248, 0.16);
+      color: #ffffff;
+    }
+
+    @media (max-width: 768px) {
+      .app-shell { padding: 16px 0 32px; }
+      .content-card { padding: 18px; }
+      .page-title { font-size: 1.6rem; }
+      .table-modern { border-spacing: 0 6px; }
+      .app-container { padding-left: 16px; padding-right: 16px; }
+      .floating-markers {
+        right: 12px;
+        bottom: 12px;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="theme-{{ theme_style|default('modern') }} theme-color-{{ theme_color|default('snow') }}">
   <!-- Navigation Bar -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <nav id="layout-navbar" class="navbar navbar-expand-lg navbar-light app-navbar mb-4">
     <a class="navbar-brand" href="/">
     <img
       src="{{ url_for('static', filename='favicon-32x32.png') }}"
@@ -38,45 +805,87 @@
       class="d-inline-block align-middle mr-2"
       alt="CA logo"
     >
-    Pikachu CA
+    <span class="navbar-brand-text">{{ product_name }}</span>
     </a>
 
+    {% if current_user.is_authenticated %}
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
       aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav">
-        <li class="nav-item"><a class="nav-link" href="/certs">Certs</a></li>
-        <li class="nav-item"><a class="nav-link" href="/sign">RA(sign)</a></li>
-        <li class="nav-item"><a class="nav-link" href="/requests">CSRs</a></li>
-        <li class="nav-item"><a class="nav-link" href="/keys">Keys</a></li>
-        <li class="nav-item"><a class="nav-link" href="/profiles">Profiles</a></li>
-        <li class="nav-item"><a class="nav-link" href="/x509_templates">Templates</a></li>
-        <li class="nav-item"><a class="nav-link" href="/va">VA(crl)</a></li>
-        <li class="nav-item"><a class="nav-link" href="/server_ext">Server Ext</a></li>
-        <li class="nav-item"><a class="nav-link" href="/ca">CA ({{ ca_mode }})</a></li>
-        <li class="nav-item"><a class="nav-link" href="/api">APIs</a></li>
-        <li class="nav-item"><a class="nav-link" href="/inspect">Inspect</a></li>
-        <li class="nav-item">
-          <a class="nav-link" href="javascript:void(0);" onclick="openConfig();">Config</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="https://chatgpt.com/g/g-685321c0890c81919b8ba960251c95ae-pikachu-ca" target="_blank">ChatPikachu</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('static', filename='help.pdf') }}" target="_blank">Help</a>
-        </li>
-        <li class="nav-item"><a class="nav-link" href="/logs">Logs</a></li>
+        {% if request.path not in ['/login', '/register'] %}
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/certs') %} active{% endif %}" href="/certs">Certs</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/sign') %} active{% endif %}" href="/sign">RA(sign)</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/requests') %} active{% endif %}" href="/requests">CSRs</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/keys') %} active{% endif %}" href="/keys">Keys</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/ra_policies') %} active{% endif %}" href="/ra_policies">Enrollment</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/profiles') %} active{% endif %}" href="/profiles">Certificate Templates</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/va') %} active{% endif %}" href="/va">VA(crl)</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/ca') %} active{% endif %}" href="/ca">CA ({{ ca_mode }})</a></li>
+          {% if current_user.is_authenticated and current_user.is_admin() and show_legacy_paths %}
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/x509_templates') %} active{% endif %}" href="/x509_templates">Templates</a></li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/events') %} active{% endif %}" href="/events">Events</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/api') %} active{% endif %}" href="/api">APIs</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/inspect') %} active{% endif %}" href="/inspect">Inspect</a></li>
+          {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            <a class="nav-link" href="javascript:void(0);" onclick="openConfig();">Config</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="https://chatgpt.com/g/g-685321c0890c81919b8ba960251c95ae-pkisquire-ca" target="_blank">ChatPKISquire</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('static', filename='help.pdf') }}" target="_blank">Help</a>
+          </li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/logs') %} active{% endif %}" href="/logs">Logs</a></li>
+        {% endif %}
       </ul>
-    </ul>
     <!-- New version badge to the right -->
     <span class="navbar-text text-muted ml-3">
-      v{{ version }}
+      v{{ version }} | <a href="/about" class="text-muted">About</a> | {{ app_edition|default('community')|capitalize }}
+      <span class="badge badge-light ml-2">
+        Theme: {{ theme_style|default('modern')|capitalize }} / {{ theme_color|default('snow')|capitalize }}
+      </span>
     </span>
+    <!-- User info and actions -->
+    {% if current_user.is_authenticated %}
+      <span class="navbar-text ml-4">
+        <strong>User:</strong> {{ current_user.username }}
+        <span class="ml-2"><strong>Role:</strong> {{ 'admin' if current_user.is_admin() else 'user' }}</span>
+        <a href="{{ url_for('account') }}" class="btn btn-sm btn-ghost ml-2">Account</a>
+        {% if current_user.is_admin() %}
+          <a href="/users/manage" class="btn btn-sm btn-soft ml-2">Users</a>
+        {% endif %}
+      </span>
+    {% endif %}
     </div>
+    {% endif %}
   </nav>
-  <div class="container">
+  {% if current_user.is_authenticated %}
+  <div id="floatingMarkers" class="floating-markers floating-marker-hidden" aria-label="Quick navigation">
+    <button type="button" class="floating-marker-btn" onclick="scrollToLayoutButtons()">Menu</button>
+    <button type="button" class="floating-marker-btn" onclick="toggleFloatingPaths()">Shortcuts</button>
+    <div id="floatingPaths" class="floating-paths floating-paths-hidden" aria-label="Quick paths">
+      <a class="floating-path-link" href="/certs">Certs</a>
+      <a class="floating-path-link" href="/sign">RA(sign)</a>
+      <a class="floating-path-link" href="/requests">CSRs</a>
+      <a class="floating-path-link" href="/keys">Keys</a>
+      <a class="floating-path-link" href="/ra_policies">Enrollment</a>
+      <a class="floating-path-link" href="/profiles">Templates</a>
+      <a class="floating-path-link" href="/va">VA(crl)</a>
+      <a class="floating-path-link" href="/ca">CA</a>
+      <a class="floating-path-link" href="/events">Events</a>
+      <a class="floating-path-link" href="/inspect">Inspect</a>
+      <a class="floating-path-link" href="/logs">Logs</a>
+    </div>
+  </div>
+  {% endif %}
+  <div class="app-shell">
+    <div class="container-fluid app-container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -90,12 +899,57 @@
       {% endif %}
     {% endwith %}
     {% block content %}{% endblock %}
+    </div>
   </div>
 
   <!-- Bootstrap JS and dependencies -->
   <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
+  function scrollToLayoutButtons() {
+    var nav = document.getElementById("layout-navbar");
+    if (nav) {
+      nav.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function toggleFloatingPaths() {
+    var paths = document.getElementById("floatingPaths");
+    if (!paths) {
+      return;
+    }
+    paths.classList.toggle("floating-paths-hidden");
+  }
+
+  function toggleFloatingMarkers() {
+    var markers = document.getElementById("floatingMarkers");
+    var paths = document.getElementById("floatingPaths");
+    if (!markers) {
+      return;
+    }
+    if (window.scrollY > 200) {
+      markers.classList.remove("floating-marker-hidden");
+    } else {
+      markers.classList.add("floating-marker-hidden");
+      if (paths) {
+        paths.classList.add("floating-paths-hidden");
+      }
+    }
+  }
+
+  window.addEventListener("scroll", toggleFloatingMarkers);
+  document.addEventListener("DOMContentLoaded", toggleFloatingMarkers);
+  document.addEventListener("click", function(event) {
+    var markers = document.getElementById("floatingMarkers");
+    var paths = document.getElementById("floatingPaths");
+    if (!markers || !paths) {
+      return;
+    }
+    if (!markers.contains(event.target)) {
+      paths.classList.add("floating-paths-hidden");
+    }
+  });
+
   function openConfig() {
     var secret = prompt("Enter secret to access configuration:");
     if (secret === null || secret.trim() === "") {
@@ -116,8 +970,34 @@
     form.submit();
   }
   </script>
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll("[data-copy-target]").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        const targetId = btn.getAttribute("data-copy-target");
+        const targetEl = document.getElementById(targetId);
+        if (!targetEl || !navigator.clipboard) return;
+        let text = "";
+        if (targetEl.tagName === "TEXTAREA" || targetEl.tagName === "INPUT") {
+          text = targetEl.value || "";
+        } else {
+          text = targetEl.textContent || "";
+        }
+        navigator.clipboard.writeText(text.trim()).then(function() {
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = original; }, 1200);
+        });
+      });
+    });
+  });
+  </script>
 
 
+
+{% block scripts %}{% endblock %}
 </body>
 </html>
+
+
 

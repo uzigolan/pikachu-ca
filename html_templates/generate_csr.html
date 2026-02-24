@@ -4,26 +4,48 @@
   <form method="POST" class="mb-4">
     <div class="form-group">
       <label for="csr_name">CSR Name:</label>
-      <input type="text" name="csr_name" id="csr_name" class="form-control" required>
+      <input type="text" name="csr_name" id="csr_name" class="form-control" required data-testid="input-csr-name">
     </div>
     <div class="form-group">
       <label for="key_id">Select Key:</label>
-      <select name="key_id" id="key_id" class="form-control" required>
+      <select name="key_id" id="key_id" class="form-control" required data-testid="select-key-id">
         {% for key in keys %}
-          <option value="{{ key.id }}">{{ key.name }} ({{ key.key_type }})</option>
+        <option value="{{ key.id }}">{{ key.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="form-group">
-      <label for="profile_id">Select Profile:</label>
+      <label for="profile_id">Select Certificate Template:</label>
       <select name="profile_id" id="profile_id" class="form-control" required>
         {% for profile in profiles %}
-          <option value="{{ profile.id }}">{{ profile.filename }} - {{ profile.template_name }}</option>
+          <option value="{{ profile.id }}">
+            {{ profile.name }}{% if profile.template_name %} (from {{ profile.template_name }}){% endif %}
+          </option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" class="btn btn-primary">Generate CSR</button>
+    <div class="form-group">
+      <label>Certificate Template Content Preview:</label>
+      <pre id="profile-content-preview" style="background:#f8f9fa; border:1px solid #ccc; padding:1em; max-height:300px; overflow:auto;" readonly></pre>
+    </div>
+    <button type="submit" class="btn btn-primary" data-testid="btn-generate-csr">Generate CSR</button>
+    <a href="{{ url_for('requests.list_csrs') }}" class="btn btn-secondary ml-2">Cancel</a>
   </form>
-  <a href="{{ url_for('requests.list_csrs') }}" class="btn btn-link">Back to CSR List</a>
+  <script>
+    function loadProfileContent() {
+      var select = document.getElementById('profile_id');
+      var preview = document.getElementById('profile-content-preview');
+      var profileId = select.value;
+      if (!profileId) { preview.textContent = ''; return; }
+      fetch('/requests/profile_content?profile_id=' + encodeURIComponent(profileId))
+        .then(resp => resp.ok ? resp.text() : Promise.reject('Failed to load'))
+        .then(text => { preview.textContent = text; })
+        .catch(() => { preview.textContent = 'Error loading template content.'; });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      loadProfileContent();
+      document.getElementById('profile_id').addEventListener('change', loadProfileContent);
+    });
+  </script>
 {% endblock %}
 

@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2>Account</h2>
+  <ul class="nav nav-tabs mt-3" id="accountTabs" role="tablist">
+    <li class="nav-item">
+      <a class="nav-link active" id="tab-password" data-toggle="tab" href="#panel-password" role="tab" aria-controls="panel-password" aria-selected="true">Change Password</a>
+    </li>
+    {% if is_enterprise %}
+    <li class="nav-item">
+      <a class="nav-link" id="tab-tokens" data-toggle="tab" href="#panel-tokens" role="tab" aria-controls="panel-tokens" aria-selected="false">API Tokens</a>
+    </li>
+    {% endif %}
+    <li class="nav-item">
+      <a class="nav-link" id="tab-appearance" data-toggle="tab" href="#panel-appearance" role="tab" aria-controls="panel-appearance" aria-selected="false">Appearance</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" id="tab-logout" data-toggle="tab" href="#panel-logout" role="tab" aria-controls="panel-logout" aria-selected="false">Logout</a>
+    </li>
+  </ul>
+  <div class="tab-content border border-top-0 p-3" id="accountTabsContent">
+    <div class="tab-pane fade show active" id="panel-password" role="tabpanel" aria-labelledby="tab-password">
+      {% if current_user.auth_source and current_user.auth_source|lower == 'local' %}
+      <form method="POST" action="{{ url_for('change_password') }}">
+        <div class="form-group">
+          <label for="current_password">Current Password</label>
+          <input type="password" class="form-control" id="current_password" name="current_password" required>
+        </div>
+        <div class="form-group">
+          <label for="new_password">New Password</label>
+          <input type="password" class="form-control" id="new_password" name="new_password" required>
+        </div>
+        <div class="form-group">
+          <label for="confirm_password">Confirm New Password</label>
+          <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Change Password</button>
+      </form>
+      {% else %}
+      <div class="alert alert-info mb-0">Password changes are managed by your authentication provider.</div>
+      {% endif %}
+    </div>
+    {% if is_enterprise %}
+    <div class="tab-pane fade" id="panel-tokens" role="tabpanel" aria-labelledby="tab-tokens">
+      <p class="mb-2">Create and manage personal API tokens for automated access.</p>
+      <a href="{{ url_for('users.api_tokens') }}" class="btn btn-primary">Manage API Tokens</a>
+    </div>
+    {% endif %}
+    <div class="tab-pane fade" id="panel-appearance" role="tabpanel" aria-labelledby="tab-appearance">
+      <form method="POST" action="{{ url_for('account_theme') }}">
+        <div class="form-group">
+          <label for="theme_style">Theme style</label>
+          <select id="theme_style" name="theme_style" class="form-control">
+            <option value="modern" {% if theme_style == 'modern' %}selected{% endif %}>Modern</option>
+            <option value="classic" {% if theme_style == 'classic' %}selected{% endif %}>Classic</option>
+          </select>
+        </div>
+        <div class="form-group" id="theme-color-group">
+          <label for="theme_color">Theme color</label>
+          <select id="theme_color" name="theme_color" class="form-control">
+            <option value="snow" {% if theme_color == 'snow' %}selected{% endif %}>Snow</option>
+            <option value="midnight" {% if theme_color == 'midnight' %}selected{% endif %}>Midnight</option>
+          </select>
+          <small class="form-text text-muted">Theme color is available for Modern only.</small>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Theme</button>
+      </form>
+    </div>
+    <div class="tab-pane fade" id="panel-logout" role="tabpanel" aria-labelledby="tab-logout">
+      <a href="{{ url_for('users.logout') }}" class="btn btn-danger">Logout</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  function toggleThemeColor() {
+    var styleSelect = document.getElementById('theme_style');
+    var colorGroup = document.getElementById('theme-color-group');
+    if (!styleSelect || !colorGroup) return;
+    var isModern = styleSelect.value === 'modern';
+    colorGroup.style.display = isModern ? 'block' : 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', toggleThemeColor);
+  document.getElementById('theme_style').addEventListener('change', toggleThemeColor);
+</script>
+{% endblock %}
