@@ -4,8 +4,29 @@ Welcome to the RAD CA Server — a Flask-based Public Key Infrastructure (PKI) p
 
 ---
 
-## 🔍 Overview
+## Website (GitHub Pages)
 
+This repository includes a GitHub Pages site under `docs/` with SEO metadata, `robots.txt`, and `sitemap.xml`.
+
+- Expected site URL: `https://uzigolan.github.io/pikachu-ca/`
+- Workflow file: `.github/workflows/github-pages.yml`
+
+One-time setup in GitHub:
+- Open repository `Settings` -> `Pages`.
+- Under `Build and deployment`, set `Source` to `GitHub Actions`.
+- Push to `main`/`master` (or run the workflow manually from `Actions`).
+
+After first deploy, submit the sitemap to Google Search Console:
+- `https://uzigolan.github.io/pikachu-ca/sitemap.xml`
+
+If the repo name changes, update these URLs in:
+- `docs/index.html`
+- `docs/robots.txt`
+- `docs/sitemap.xml`
+
+---
+
+## 🔍 Overview
 This server provides tools for:
 
 * Generating RSA, ECC, and quantum-safe keys
@@ -79,3 +100,4 @@ https://openxpki.iot-rad.com:4443/
 ## ⚡ Pikachu Says...
 
 Stay secure, and may your certs never expire! Pika Pi! 💛
+

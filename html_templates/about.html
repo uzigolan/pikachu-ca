@@ -1,0 +1,180 @@
+{% extends "layout.html" %}
+{% block title %}About | {{ product_name|replace('\n', ' ') }}{% endblock %}
+{% block head %}
+  <meta name="description" content="PKISquire CA is a Flask-based Public Key Infrastructure platform for certificate lifecycle management with SCEP, EST, OCSP, MQTT/TLS, and optional post-quantum cryptography support.">
+  <meta name="keywords" content="PKI, certificate authority, CA server, SCEP, EST, OCSP, TLS, MQTT, X.509, certificate management, post-quantum cryptography, Dilithium, Flask">
+  <link rel="canonical" href="{{ request.url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="About {{ product_name|replace('\n', ' ') }}">
+  <meta property="og:description" content="PKISquire CA helps manage certificate issuance, revocation, and validation with SCEP, EST, and OCSP support.">
+  <meta property="og:url" content="{{ request.url }}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="About {{ product_name|replace('\n', ' ') }}">
+  <meta name="twitter:description" content="Flask-based PKI platform with SCEP, EST, OCSP, and certificate lifecycle automation.">
+{% endblock %}
+{% block content %}
+  <div class="row">
+    <div class="col-12">
+      <div class="d-flex align-items-start mb-4">
+        <div class="font-weight-bold mr-3" style="min-width: 120px; font-size: 2rem; line-height: 1.1;">About</div>
+        <div style="font-size: 2rem; line-height: 1.1;"><span class="product-name-display">{{ product_name }}</span></div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Overview</h5>
+          <p class="card-text">
+            A Flask-based Public Key Infrastructure (PKI) platform for managing certificate lifecycles
+            with SCEP, EST, and OCSP protocol support.
+          </p>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Features</h5>
+          <ul>
+            <li>Web UI + RESTful API support</li>
+            <li>CSR submission and certificate issuance</li>
+            <li>Certificate revocation and CRL generation</li>
+            <li>SCEP and EST protocol support for automated enrollment</li>
+            <li>Post-Quantum Cryptography (e.g., Dilithium)</li>
+            <li>MQTTs TLS integration</li>
+            <li>OCSP real-time validation</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Resources</h5>
+          <div class="list-group list-group-flush">
+            <a href="https://github.com/uzigolan/pkisquire-ca" target="_blank" class="list-group-item list-group-item-action">
+              <strong>GitHub Repository</strong><br>
+              <small class="text-muted">https://github.com/uzigolan/pkisquire-ca</small>
+            </a>
+            <a href="https://github.com/certnanny/sscep" target="_blank" class="list-group-item list-group-item-action">
+              <strong>SCEP Client (sscep)</strong><br>
+              <small class="text-muted">Simple SCEP client for automated enrollment</small>
+            </a>
+            <a href="https://github.com/globalsign/est" target="_blank" class="list-group-item list-group-item-action">
+              <strong>EST Client (estclient)</strong><br>
+              <small class="text-muted">GlobalSign EST protocol implementation</small>
+            </a>
+            <a href="https://github.com/open-quantum-safe/oqs-provider" target="_blank" class="list-group-item list-group-item-action">
+              <strong>Post-Quantum Crypto (oqs-provider)</strong><br>
+              <small class="text-muted">OpenSSL provider for quantum-safe algorithms</small>
+            </a>
+            <a href="{{ url_for('openssl_info') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>OpenSSL Runtime Info</strong><br>
+              <small class="text-muted">Captured at app startup: version, build, and active providers</small>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Security</h5>
+          <p class="card-text">
+            Security reports include Bandit static analysis outputs (JSON/HTML/interactive),
+            pip-audit dependency findings, and dated history snapshots under <code>security/history</code>.
+          </p>
+          <div class="list-group list-group-flush">
+            <a href="{{ url_for('bandit_report_interactive') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>Bandit Report (Latest)</strong><br>
+              <small class="text-muted">Security review with search, filter, and sort</small>
+            </a>
+            <a href="{{ url_for('pip_audit_report_interactive') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>Vulnerabilities Report (Latest)</strong><br>
+              <small class="text-muted">Dependency findings with severity, filter, and sort</small>
+            </a>
+            <a href="javascript:void(0);" onclick="openLicensesReport();" class="list-group-item list-group-item-action">
+              <strong>Licenses Report (Latest)</strong><br>
+              <small class="text-muted">Dependency licenses with unknown-license highlighting</small>
+            </a>
+            <a href="{{ url_for('security_readme') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>Security README</strong><br>
+              <small class="text-muted">How the reports are generated and what they include</small>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Tests</h5>
+          <p class="card-text">
+            Two pytest suites: a 17-step UI lifecycle flow and API/PowerShell tests
+            covering basic endpoints, EST, EST mTLS, and SCEP (with and without challenge),
+            with artifact and DB cleanup. Reports are stored under <code>tests_repo/reports</code>.
+          </p>
+          <div class="list-group list-group-flush">
+            <a href="{{ url_for('latest_ui_report') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>UI Test Report (Latest)</strong><br>
+              <small class="text-muted">Full UI certificate lifecycle report</small>
+            </a>
+            <a href="{{ url_for('latest_api_report') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>API Test Report (Latest)</strong><br>
+              <small class="text-muted">API and protocol flow report</small>
+            </a>
+            <a href="{{ url_for('tests_readme') }}" target="_blank" class="list-group-item list-group-item-action">
+              <strong>Tests README</strong><br>
+              <small class="text-muted">How to run UI/API and protocol test suites</small>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Version</h5>
+          <p class="card-text">
+            <strong>Current Version:</strong> {{ version }}
+          </p>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">License</h5>
+          <p class="card-text">
+            Dual-licensed under the MIT License or the Apache License, Version 2.0.
+            See <a href="{{ url_for('license_file') }}" target="_blank" rel="noopener">LICENSE.md</a> for full text.
+          </p>
+        </div>
+      </div>
+
+      <p class="text-center text-muted mt-4">
+        <small>Stay secure, and may your certs never expire.</small>
+      </p>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function openLicensesReport() {
+    var secret = prompt("Enter secret to access licenses report:");
+    if (secret === null || secret.trim() === "") {
+      return;
+    }
+
+    var form = document.createElement("form");
+    form.method = "POST";
+    form.action = "{{ url_for('pip_licenses_report_interactive') }}";
+    form.target = "_blank";
+
+    var input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "config_secret";
+    input.value = secret;
+
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+  }
+</script>
+{% endblock %}
+
+
