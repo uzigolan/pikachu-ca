@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PKISquire CA Server Paths Reference</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --card: #ffffff;
+      --line: #d9e1ea;
+      --text: #132238;
+      --muted: #42556c;
+      --head: #0f2942;
+      --accent: #0b7285;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #f3f6fb 0%, #ecf2f8 100%);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 20px 14px 36px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 3px 12px rgba(16, 24, 40, 0.05);
+    }
+    h1, h2 {
+      margin: 0 0 10px;
+      color: var(--head);
+    }
+    p, li { color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 8px;
+    }
+    th {
+      background: #eef4fb;
+      color: #18324d;
+      font-weight: 700;
+    }
+    code {
+      background: #f2f5f8;
+      border: 1px solid #e3e8ef;
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #111827;
+      white-space: nowrap;
+    }
+    .small {
+      font-size: 12px;
+      color: #667085;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>PKISquire CA Server Paths Reference</h1>
+      <p>
+        Detailed behavior for current server paths: what each endpoint does, access level, and important request/response notes.
+      </p>
+      <p class="small">
+        Source-derived from: <code>app.py</code>, <code>users.py</code>, <code>events.py</code>, <code>x509_keys.py</code>,
+        <code>x509_profiles.py</code>, <code>x509_requests.py</code>, <code>scep.py</code>.
+        Updated: 2026-02-27.
+      </p>
+      <p class="small">Legend for Access: <code>Public</code>, <code>Login</code>, <code>Admin</code>, <code>Owner/Admin</code>, <code>Enterprise-gated</code>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Core App Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/</code>, <code>/dashboard</code></td><td>GET</td><td>Login</td><td>Dashboard summary of certificate status and enrollment source.</td><td>Output: HTML dashboard with totals and charts.</td></tr>
+        <tr><td><code>/dashboard/activity_data</code></td><td>GET</td><td>Login</td><td>Returns events for dashboard charting.</td><td>Query: <code>limit</code>, <code>start</code>, <code>end</code>. Output: JSON events.</td></tr>
+        <tr><td><code>/certs</code></td><td>GET</td><td>Login</td><td>Lists certificates. Admin sees all, user sees own.</td><td>Output: certificate table with revoke/delete/download actions.</td></tr>
+        <tr><td><code>/certs/state</code></td><td>GET</td><td>Login</td><td>Lightweight state for UI polling.</td><td>Output: JSON <code>{count, max_id}</code>.</td></tr>
+        <tr><td><code>/view/&lt;int:cert_id&gt;</code></td><td>GET</td><td>Owner/Admin</td><td>Certificate detail view with parsed fields and key format exports.</td><td>Output: HTML detail page.</td></tr>
+        <tr><td><code>/view_root</code></td><td>GET</td><td>Public</td><td>Displays Root CA certificate details.</td><td>Reads configured root cert path.</td></tr>
+        <tr><td><code>/view_sub</code></td><td>GET</td><td>Public</td><td>Displays Subordinate CA certificate details.</td><td>Reads configured sub-CA cert path.</td></tr>
+        <tr><td><code>/sign</code></td><td>GET</td><td>Login</td><td>RA signing page with CSR queue and policy selection.</td><td>Output: HTML form; validity derived from selected RA policy.</td></tr>
+        <tr><td><code>/submit</code></td><td>POST</td><td>Login</td><td>Signs CSR using selected/default RA policy and stores certificate.</td><td>Form: <code>csr</code>, <code>policy_id</code>, <code>ext_block</code>. Output: redirect + flash.</td></tr>
+        <tr><td><code>/submit_q</code></td><td>POST</td><td>Public route (uses current user)</td><td>Alternate CSR signing flow.</td><td>Form: <code>csr</code>, <code>policy_id</code>, <code>ext_block</code>. Redirect on success.</td></tr>
+        <tr><td><code>/revoke/&lt;int:cert_id&gt;</code></td><td>POST</td><td>Owner/Admin</td><td>Revokes certificate and regenerates CRL.</td><td>Output: redirect to <code>/certs</code>.</td></tr>
+        <tr><td><code>/delete/&lt;int:cert_id&gt;</code></td><td>POST</td><td>Owner/Admin</td><td>Deletes certificate row from DB.</td><td>Output: redirect to <code>/certs</code>.</td></tr>
+        <tr><td><code>/status/&lt;serial&gt;</code></td><td>GET</td><td>Public</td><td>Returns simple revocation status by serial.</td><td>Output: JSON <code>valid/revoked/not found</code>.</td></tr>
+        <tr><td><code>/expired</code></td><td>GET</td><td>Public</td><td>Returns IDs of expired certs.</td><td>Output: JSON list of IDs.</td></tr>
+        <tr><td><code>/downloads/&lt;int:cert_id&gt;</code></td><td>GET</td><td>Public</td><td>Downloads cert PEM by ID.</td><td>Output: PEM attachment (CN-based filename if parsed).</td></tr>
+        <tr><td><code>/downloads/pfx/&lt;int:cert_id&gt;</code></td><td>POST</td><td>Public</td><td>Builds and downloads PKCS#12 bundle.</td><td>Form: <code>pfx_password</code>. Requires matching private key in DB.</td></tr>
+        <tr><td><code>/downloads/chain</code></td><td>GET</td><td>Public</td><td>Downloads CA chain file.</td><td>Output: chain PEM file.</td></tr>
+        <tr><td><code>/downloads/crl</code></td><td>GET</td><td>Public</td><td>Downloads current CRL file.</td><td>Output: CRL file attachment.</td></tr>
+        <tr><td><code>/downloads/all_zip</code></td><td>GET</td><td>Public</td><td>Zips all stored certificates.</td><td>Output: <code>all_certificates.zip</code>.</td></tr>
+        <tr><td><code>/va</code></td><td>GET</td><td>Login</td><td>Validation Authority page: CRL, parsed CRL, revoked cert list.</td><td>Reads CRL file + DB revoked records.</td></tr>
+        <tr><td><code>/ca</code></td><td>GET</td><td>Login</td><td>Shows Root/Sub CA certificates, parsed fields, OpenSSL text.</td><td>Reads configured cert paths.</td></tr>
+        <tr><td><code>/update_validity</code></td><td>POST</td><td>Login (policy permission checked)</td><td>Updates validity days on selected RA policy.</td><td>Form: <code>policy_id</code>, <code>validity_days</code>.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>RA Policies and Server Extension Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/ra_policies</code></td><td>GET</td><td>Login</td><td>Lists enrollment/RA policies.</td><td>Admin: all policies. User: own + system policies.</td></tr>
+        <tr><td><code>/ra_policies/state</code></td><td>GET</td><td>Login</td><td>State endpoint for policy UI polling.</td><td>Output: JSON <code>{count, max_id}</code>.</td></tr>
+        <tr><td><code>/ra_policies/new</code></td><td>GET, POST</td><td>Login</td><td>Creates new policy, optional clone from existing policy.</td><td>Form: name, validity, ext config, profile mapping, defaults.</td></tr>
+        <tr><td><code>/ra_policies/&lt;int:policy_id&gt;/edit</code></td><td>GET, POST</td><td>Login (permission rules)</td><td>Edits policy. Non-admin can be view-only for system policies.</td><td>Supports query <code>?view=1</code>.</td></tr>
+        <tr><td><code>/ra_policies/&lt;int:policy_id&gt;/delete</code></td><td>POST</td><td>Login (permission rules)</td><td>Deletes policy.</td><td>Output: redirect + flash status.</td></tr>
+        <tr><td><code>/server_ext</code></td><td>GET, POST</td><td>Login</td><td>Edits/stores extension config bound to default/selected RA policy.</td><td>Form: <code>server_ext_config</code>, optional <code>save_system_default</code> (admin).</td></tr>
+        <tr><td><code>/get_server_ext_content</code></td><td>GET</td><td>Login</td><td>Returns policy extension config text for AJAX loading.</td><td>Query: <code>policy_id</code> or <code>name</code>. Output: text/plain.</td></tr>
+        <tr><td><code>/load_profile</code></td><td>GET</td><td>Public</td><td>Returns stored profile content by filename.</td><td>Query: <code>filename</code>. Output: text/plain or 404.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>X.509 Keys Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/generate</code></td><td>GET, POST</td><td>Login</td><td>Generates key pair (RSA/EC/PQC).</td><td>Form: <code>key_name</code>, type-specific params. PQC requires enterprise + provider.</td></tr>
+        <tr><td><code>/keys</code></td><td>GET</td><td>Login</td><td>Lists keys with owner scoping and support status.</td><td>Admin sees all; user sees own.</td></tr>
+        <tr><td><code>/keys/state</code></td><td>GET</td><td>Login</td><td>Polling state endpoint.</td><td>Output: JSON <code>{count, max_id}</code>.</td></tr>
+        <tr><td><code>/keys/&lt;int:key_id&gt;</code></td><td>GET</td><td>Owner/Admin</td><td>Shows key detail and derived formats (PKCS#1/SEC1/RFC4716 where applicable).</td><td>Output: HTML view.</td></tr>
+        <tr><td><code>/keys/&lt;int:key_id&gt;/download</code></td><td>GET</td><td>Owner/Admin</td><td>Downloads private key PEM.</td><td>Output: PEM attachment.</td></tr>
+        <tr><td><code>/keys/&lt;int:key_id&gt;/delete</code></td><td>POST</td><td>Owner/Admin</td><td>Deletes key record.</td><td>Output: redirect to <code>/keys</code>.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>X.509 Profiles Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/profiles/</code></td><td>GET</td><td>Login</td><td>Lists certificate profiles.</td><td>Admin sees all; user sees own.</td></tr>
+        <tr><td><code>/profiles/state</code></td><td>GET</td><td>Login</td><td>Polling state endpoint.</td><td>Output: JSON <code>{count, max_id}</code>.</td></tr>
+        <tr><td><code>/profiles/new</code></td><td>GET, POST</td><td>Login</td><td>Creates manual profile content.</td><td>Supports clone via <code>?clone_id=</code>. Name validation enforced.</td></tr>
+        <tr><td><code>/profiles/view/&lt;name&gt;</code></td><td>GET</td><td>Owner/Admin</td><td>Views one profile content.</td><td>Output: HTML profile page.</td></tr>
+        <tr><td><code>/profiles/edit/&lt;name&gt;</code></td><td>GET, POST</td><td>Owner/Admin</td><td>Edits profile content.</td><td>Output: redirect with flash on save/error.</td></tr>
+        <tr><td><code>/profiles/delete/&lt;name&gt;</code></td><td>POST</td><td>Owner/Admin</td><td>Deletes profile.</td><td>Output: redirect to <code>/profiles/</code>.</td></tr>
+        <tr><td><code>/x509_templates/</code></td><td>GET</td><td>Admin + legacy flag</td><td>Lists Jinja template files (legacy path).</td><td>Requires <code>SHOW_LEGACY_PATHS=true</code>.</td></tr>
+        <tr><td><code>/template</code></td><td>GET, POST</td><td>Admin + legacy flag</td><td>Renders/saves profile from a Jinja template (legacy flow).</td><td>Query <code>template</code>, plus rendered variable form fields.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>X.509 CSR Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/requests</code></td><td>GET</td><td>Login</td><td>Lists CSRs.</td><td>Admin sees all; user sees own.</td></tr>
+        <tr><td><code>/requests/state</code></td><td>GET</td><td>Login</td><td>Polling state endpoint.</td><td>Output: JSON <code>{count, max_id}</code>.</td></tr>
+        <tr><td><code>/requests/generate</code></td><td>GET, POST</td><td>Login</td><td>Generates CSR from selected key/profile using OpenSSL.</td><td>Form: <code>csr_name</code>, <code>key_id</code>, <code>profile_id</code>.</td></tr>
+        <tr><td><code>/requests/&lt;int:csr_id&gt;</code></td><td>GET</td><td>Owner/Admin</td><td>Shows CSR details and linked key/profile info.</td><td>Output: HTML CSR page.</td></tr>
+        <tr><td><code>/requests/&lt;int:csr_id&gt;/download</code></td><td>GET</td><td>Owner/Admin</td><td>Downloads CSR file.</td><td>Output: <code>.csr</code> attachment.</td></tr>
+        <tr><td><code>/requests/&lt;int:csr_id&gt;/delete</code></td><td>POST</td><td>Owner/Admin</td><td>Deletes CSR.</td><td>Output: redirect to <code>/requests</code>.</td></tr>
+        <tr><td><code>/requests/profile_content</code></td><td>GET</td><td>Login</td><td>AJAX fetch of profile content text.</td><td>Query: <code>profile_id</code>. Output: text/plain.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>User and Account Paths (<code>/users</code> blueprint + account routes)</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/users/register</code></td><td>GET, POST</td><td>Public</td><td>Self-registration flow (pending/active based on config defaults).</td><td>Blocked when <code>allow_self_registration=false</code>.</td></tr>
+        <tr><td><code>/users/login</code></td><td>GET, POST</td><td>Public</td><td>User login (local and optional LDAP flow).</td><td>On success redirects to dashboard.</td></tr>
+        <tr><td><code>/users/logout</code></td><td>GET</td><td>Login</td><td>Logs out current user and clears session.</td><td>Redirect to login page.</td></tr>
+        <tr><td><code>/users/manage</code></td><td>GET</td><td>Admin</td><td>Admin user management UI with live status/idle visibility.</td><td>Output: HTML user list.</td></tr>
+        <tr><td><code>/users/add</code></td><td>GET, POST</td><td>Admin</td><td>Adds user account.</td><td>Form: username/password/role/email.</td></tr>
+        <tr><td><code>/users/delete/&lt;int:user_id&gt;</code></td><td>POST</td><td>Admin</td><td>Deletes user (except self).</td><td>Output: redirect to manage page.</td></tr>
+        <tr><td><code>/users/approve_user/&lt;int:user_id&gt;</code></td><td>POST</td><td>Admin</td><td>Approves pending user.</td><td>Sets status to active.</td></tr>
+        <tr><td><code>/users/toggle_active/&lt;int:user_id&gt;</code></td><td>POST</td><td>Admin</td><td>Toggles active/deactivated status.</td><td>Output: redirect with flash.</td></tr>
+        <tr><td><code>/users/change_role/&lt;int:user_id&gt;</code></td><td>POST</td><td>Admin</td><td>Changes user role (user/admin).</td><td>Form: <code>role</code>.</td></tr>
+        <tr><td><code>/users/reset_password/&lt;int:user_id&gt;</code></td><td>POST</td><td>Admin</td><td>Resets local user password (not LDAP users).</td><td>Generates random new password, flashed once.</td></tr>
+        <tr><td><code>/users/admin_logout/&lt;int:user_id&gt;</code></td><td>POST</td><td>Admin</td><td>Forces logout for target user sessions.</td><td>If target is current admin, admin is logged out too.</td></tr>
+        <tr><td><code>/users/api</code></td><td>GET</td><td>Admin</td><td>Returns user list/status API.</td><td>Output: JSON with users + current user ID.</td></tr>
+        <tr><td><code>/users/events</code></td><td>GET</td><td>Login</td><td>User events page.</td><td>Query supports page/page_size/user filters.</td></tr>
+        <tr><td><code>/users/events/api</code></td><td>GET</td><td>Login</td><td>User events API.</td><td>Output: JSON event rows.</td></tr>
+        <tr><td><code>/users/test_session_db</code></td><td>GET</td><td>Login</td><td>Session DB diagnostics endpoint.</td><td>Testing/diagnostic use.</td></tr>
+        <tr><td><code>/account</code></td><td>GET</td><td>Login</td><td>Account page for theme and password actions.</td><td>Output: HTML account page.</td></tr>
+        <tr><td><code>/account/theme</code></td><td>POST</td><td>Login</td><td>Updates user theme style/color preference.</td><td>Form: <code>theme_style</code>, <code>theme_color</code>.</td></tr>
+        <tr><td><code>/change_password</code></td><td>POST</td><td>Login</td><td>Changes current local account password.</td><td>Form: current/new/confirm. LDAP users are blocked.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Events Paths (<code>/events</code> blueprint)</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/events/</code></td><td>GET</td><td>Login</td><td>Main audit events page with filter/sort options.</td><td>Non-admin is filtered to own events.</td></tr>
+        <tr><td><code>/events/api</code></td><td>GET</td><td>Login</td><td>Paged AJAX events API.</td><td>Query: filters, sort, direction, page, page_size.</td></tr>
+        <tr><td><code>/events/&lt;int:event_id&gt;</code></td><td>GET</td><td>Login</td><td>Detailed single-event page.</td><td>404 if event not found.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Operational, Security, and Informational Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/logs</code></td><td>GET</td><td>Login</td><td>Log viewer page.</td><td>Uses <code>/logs/last</code> polling endpoint.</td></tr>
+        <tr><td><code>/logs/last</code></td><td>GET</td><td>Public</td><td>Returns last N log lines as plain text.</td><td>Query: <code>n</code> (clamped 1..5000).</td></tr>
+        <tr><td><code>/config</code></td><td>GET, POST</td><td>Login + secret gate</td><td>Displays <code>config.ini</code> after session-level secret confirmation.</td><td>POST form: <code>config_secret</code> must match <code>DELETE_SECRET</code>.</td></tr>
+        <tr><td><code>/inspect</code></td><td>GET, POST</td><td>Login</td><td>Inspects PEM/DER/PKCS/OCSP objects through OpenSSL and parser helpers.</td><td>Output: parsed object details.</td></tr>
+        <tr><td><code>/api</code></td><td>GET</td><td>Login</td><td>In-app API documentation page.</td><td>Output: HTML.</td></tr>
+        <tr><td><code>/about</code></td><td>GET</td><td>Login</td><td>About/product page.</td><td>Output: HTML.</td></tr>
+        <tr><td><code>/license</code>, <code>/license.html</code></td><td>GET</td><td>Login</td><td>License page.</td><td>Output: rendered HTML text.</td></tr>
+        <tr><td><code>/favicon.ico</code></td><td>GET</td><td>Public</td><td>Favicon delivery endpoint.</td><td>Output: static icon.</td></tr>
+        <tr><td><code>/tests/readme</code></td><td>GET</td><td>Login</td><td>Renders tests README markdown.</td><td>Output: HTML.</td></tr>
+        <tr><td><code>/reports/ui/latest</code></td><td>GET</td><td>Login</td><td>Serves newest UI test report artifact.</td><td>Output: report file if found.</td></tr>
+        <tr><td><code>/reports/api/latest</code></td><td>GET</td><td>Login</td><td>Serves newest API test report artifact.</td><td>Output: report file if found.</td></tr>
+        <tr><td><code>/security/readme</code></td><td>GET</td><td>Login</td><td>Renders security README markdown.</td><td>Output: HTML.</td></tr>
+        <tr><td><code>/security/openssl-info</code></td><td>GET</td><td>Login</td><td>Displays OpenSSL runtime/provider info.</td><td>Output: HTML diagnostics.</td></tr>
+        <tr><td><code>/security/bandit-report-interactive</code></td><td>GET</td><td>Login</td><td>Serves Bandit interactive report.</td><td>Enterprise feature set context.</td></tr>
+        <tr><td><code>/security/pip-audit-interactive</code></td><td>GET</td><td>Login</td><td>Serves pip-audit interactive report.</td><td>Enterprise feature set context.</td></tr>
+        <tr><td><code>/security/safety-vulns</code></td><td>GET</td><td>Login</td><td>Serves Safety vulnerabilities report.</td><td>Output: report file.</td></tr>
+        <tr><td><code>/security/safety-licenses</code></td><td>GET, POST</td><td>Login</td><td>Serves/generates Safety license report view.</td><td>Output: HTML/report.</td></tr>
+        <tr><td><code>/security/pip-licenses-interactive</code></td><td>GET, POST</td><td>Login</td><td>Serves/generates pip-licenses interactive report.</td><td>Output: HTML/report.</td></tr>
+        <tr><td><code>/debug_current_user</code></td><td>GET</td><td>Public</td><td>Diagnostic endpoint for current auth identity.</td><td>Output: JSON auth snapshot.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Protocol and Enterprise-Gated Paths</h2>
+      <table>
+        <tr><th>Path</th><th>Methods</th><th>Access</th><th>What It Does</th><th>Key Inputs / Outputs</th></tr>
+        <tr><td><code>/ocsp</code></td><td>GET, POST</td><td>Public + Enterprise-gated</td><td>OCSP responder endpoint via enterprise module.</td><td>Returns OCSP response according to request.</td></tr>
+        <tr><td><code>/ocspv</code></td><td>GET, POST</td><td>Public + Enterprise-gated</td><td>Alternate OCSP responder endpoint.</td><td>Delegates to enterprise routes module.</td></tr>
+        <tr><td><code>/.well-known/est/cacerts</code></td><td>GET</td><td>Public + Enterprise-gated</td><td>EST CA certs endpoint.</td><td>Used by EST clients to fetch CA chain.</td></tr>
+        <tr><td><code>/.well-known/est/simpleenroll</code></td><td>POST</td><td>Public + Enterprise-gated</td><td>EST enroll endpoint for CSR submission/signing.</td><td>Consumes DER/base64/PEM CSR body.</td></tr>
+        <tr><td><code>/scep</code>, <code>/cgi-bin/pkiclient.exe</code></td><td>GET, POST</td><td>Public + Enterprise-gated</td><td>SCEP enrollment endpoints (blueprint registered when SCEP enabled).</td><td>Return 404 if feature/registration disabled.</td></tr>
+        <tr><td><code>/mobileconfig</code></td><td>GET</td><td>Public + Enterprise-gated</td><td>SCEP mobile configuration endpoint.</td><td>Feature-gated.</td></tr>
+        <tr><td><code>/challenge_passwords</code></td><td>GET, POST</td><td>Login + Enterprise-gated</td><td>Challenge-password management UI.</td><td>Delegates to enterprise module.</td></tr>
+        <tr><td><code>/challenge_passwords/data</code></td><td>GET</td><td>Login + Enterprise-gated</td><td>Challenge-passwords data API.</td><td>Output: JSON-like data for UI.</td></tr>
+        <tr><td><code>/api/challenge_passwords</code></td><td>POST</td><td>Public + Enterprise-gated</td><td>Token-backed challenge-password creation API.</td><td>Uses token verification helper from <code>users.py</code>.</td></tr>
+        <tr><td><code>/delete_challenge_password</code></td><td>POST</td><td>Login + Enterprise-gated</td><td>Deletes one challenge password entry.</td><td>Delegates to enterprise module.</td></tr>
+        <tr><td><code>/delete_all_expired_challenge_passwords</code></td><td>POST</td><td>Login + Enterprise-gated</td><td>Bulk-deletes expired challenge passwords.</td><td>Delegates to enterprise module.</td></tr>
+        <tr><td><code>/users/tokens</code></td><td>GET, POST</td><td>Login + Enterprise-gated</td><td>User API token management page.</td><td>Unavailable when token feature disabled.</td></tr>
+        <tr><td><code>/users/tokens/state</code></td><td>GET</td><td>Login + Enterprise-gated</td><td>API token UI state endpoint.</td><td>Output: token state payload.</td></tr>
+        <tr><td><code>/users/tokens/&lt;int:token_id&gt;/delete</code></td><td>POST</td><td>Login + Enterprise-gated</td><td>Deletes one API token.</td><td>Output: redirect/JSON per module.</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Related Docs</h2>
+      <ul>
+        <li><a href="web_server_user_manual.html">web_server_user_manual.html</a></li>
+        <li><a href="repo_web_tree.html">repo_web_tree.html</a></li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

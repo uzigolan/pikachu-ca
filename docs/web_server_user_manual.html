@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PKISquire CA Web Server User Manual</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --text: #132238;
+      --muted: #44556b;
+      --line: #d7dee7;
+      --accent: #0e7490;
+      --ok: #0f766e;
+      --warn: #b45309;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #f4f7fb 0%, #edf2f8 100%);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .wrap {
+      max-width: 1150px;
+      margin: 0 auto;
+      padding: 22px 16px 40px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 14px rgba(16, 24, 40, 0.05);
+    }
+    h1, h2, h3 {
+      margin: 0 0 10px;
+      color: #0f2942;
+    }
+    p, li {
+      color: var(--muted);
+    }
+    code {
+      background: #f2f5f8;
+      border: 1px solid #e3e8ef;
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #111827;
+    }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: #243447;
+      margin-right: 6px;
+    }
+    .tag.ok { color: var(--ok); border-color: #99f6e4; background: #f0fdfa; }
+    .tag.warn { color: var(--warn); border-color: #fed7aa; background: #fffbeb; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fbfdff;
+    }
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+      background: #0f172a;
+      color: #d1fae5;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .stamp {
+      font-size: 12px;
+      color: #667085;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>PKISquire CA Web Server User Manual</h1>
+      <p>
+        This manual explains how to operate the PKISquire CA web server UI and related web endpoints.
+        It is based on current route and handler behavior in the codebase.
+      </p>
+      <p class="stamp">
+        Source files: <code>app.py</code>, <code>users.py</code>, <code>x509_keys.py</code>,
+        <code>x509_profiles.py</code>, <code>x509_requests.py</code>, <code>events.py</code>.
+        Updated: 2026-02-27.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>1) Purpose and Audience</h2>
+      <ul>
+        <li><strong>Audience:</strong> PKI operators, security admins, and helpdesk engineers using the web UI.</li>
+        <li><strong>Purpose:</strong> run daily certificate lifecycle tasks safely and consistently.</li>
+        <li><strong>Scope:</strong> UI workflows plus related server endpoints used by operators.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>2) Prerequisites</h2>
+      <ul>
+        <li>Install dependencies: <code>pip install -r requirements.txt</code></li>
+        <li>Run database migration: <code>python migrate_db.py</code></li>
+        <li>Start server: <code>python app.py</code></li>
+        <li>Main config file: <code>config.ini</code></li>
+      </ul>
+      <p>
+        Runtime edition is controlled by <code>PIKACHU_EDITION</code>:
+        <code>community</code> or <code>enterprise</code>.
+      </p>
+      <span class="tag ok">Community: core UI/API</span>
+      <span class="tag warn">Enterprise-only: EST, SCEP, OCSP, challenge passwords, API tokens, LDAP/PQC extras</span>
+    </div>
+
+    <div class="card">
+      <h2>3) Authentication and Access Model</h2>
+      <ul>
+        <li>Login page: <code>/users/login</code></li>
+        <li>Self-registration page: <code>/users/register</code> (enabled only if <code>allow_self_registration=true</code>)</li>
+        <li>Logout: <code>/users/logout</code></li>
+        <li>Most pages require login via <code>@login_required</code></li>
+        <li>Non-admin users generally see only their own keys, profiles, CSRs, and certificates</li>
+      </ul>
+      <p>
+        Admin-only workflows include user management (<code>/users/manage</code>) and elevated policy/system controls.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>4) Quick Start (10 Minutes)</h2>
+      <ol>
+        <li>Log in at <code>/users/login</code>.</li>
+        <li>Create a key at <code>/generate</code>.</li>
+        <li>Create a profile at <code>/profiles/new</code>.</li>
+        <li>Generate CSR at <code>/requests/generate</code>.</li>
+        <li>Sign CSR at <code>/sign</code>.</li>
+        <li>Verify/download certificate at <code>/certs</code>.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>5) Task-Based Workflow Guides</h2>
+      <div class="grid">
+        <div class="mini">
+          <h3>Step A: Create Key</h3>
+          <p>Go to <code>/generate</code>, choose key type (RSA/EC/PQC), and save.</p>
+        </div>
+        <div class="mini">
+          <h3>Step B: Create Profile</h3>
+          <p>Go to <code>/profiles/new</code>, define OpenSSL profile content, save profile.</p>
+        </div>
+        <div class="mini">
+          <h3>Step C: Generate CSR</h3>
+          <p>Go to <code>/requests/generate</code>, pick key + profile, create CSR.</p>
+        </div>
+        <div class="mini">
+          <h3>Step D: Sign CSR</h3>
+          <p>Go to <code>/sign</code>, choose CSR and RA policy, submit signing.</p>
+        </div>
+        <div class="mini">
+          <h3>Step E: Manage Certificate</h3>
+          <p>Use <code>/certs</code> to view, download, revoke, delete, export PFX.</p>
+        </div>
+        <div class="mini">
+          <h3>Step F: Validate and Audit</h3>
+          <p>Use <code>/va</code>, <code>/status/&lt;serial&gt;</code>, <code>/events</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>6) Main Pages and How to Use Them</h2>
+      <h3>Dashboard and Certificate Inventory</h3>
+      <ul>
+        <li><code>/</code> or <code>/dashboard</code>: summary counters and activity data</li>
+        <li><code>/certs</code>: certificate table with ownership filtering</li>
+        <li><code>/view/&lt;id&gt;</code>: certificate details and key format views</li>
+        <li><code>/revoke/&lt;id&gt;</code> (POST): marks certificate revoked and rebuilds CRL</li>
+        <li><code>/delete/&lt;id&gt;</code> (POST): removes certificate record</li>
+        <li><code>/downloads/&lt;id&gt;</code>: download PEM certificate</li>
+        <li><code>/downloads/pfx/&lt;id&gt;</code> (POST): build and download PFX (password required)</li>
+      </ul>
+
+      <h3>RA Policies and Extension Config</h3>
+      <ul>
+        <li><code>/ra_policies</code>: list policies (admin sees all; user sees own + system)</li>
+        <li><code>/ra_policies/new</code>: create policy, optional clone via <code>?clone_id=</code></li>
+        <li><code>/ra_policies/&lt;id&gt;/edit</code>: edit policy (non-admin has restrictions on system policies)</li>
+        <li><code>/server_ext</code>: edit extension config linked to selected/default policy</li>
+        <li><code>/get_server_ext_content</code>: fetch policy extension content for UI auto-load</li>
+      </ul>
+
+      <h3>Keys, Profiles, and CSRs</h3>
+      <ul>
+        <li><code>/generate</code>: create private/public key pair</li>
+        <li><code>/keys</code>: list keys</li>
+        <li><code>/keys/&lt;id&gt;</code>: view key details and format conversions</li>
+        <li><code>/profiles/</code>: list saved certificate profiles</li>
+        <li><code>/profiles/new</code>: create profile manually</li>
+        <li><code>/requests</code>: list CSRs</li>
+        <li><code>/requests/generate</code>: generate CSR from selected key/profile</li>
+      </ul>
+
+      <h3>Validation and CA Material</h3>
+      <ul>
+        <li><code>/va</code>: CRL content + OpenSSL CRL parse + revoked list</li>
+        <li><code>/ca</code>: root and subordinate CA certificate details</li>
+        <li><code>/view_root</code>, <code>/view_sub</code>: direct certificate detail pages</li>
+        <li><code>/downloads/crl</code>, <code>/downloads/chain</code></li>
+      </ul>
+
+      <h3>Users and Account</h3>
+      <ul>
+        <li><code>/users/manage</code>: admin user management</li>
+        <li><code>/users/add</code>, <code>/users/delete/&lt;id&gt;</code>, <code>/users/reset_password/&lt;id&gt;</code></li>
+        <li><code>/account</code>: theme and password actions</li>
+        <li><code>/change_password</code>: local users only; LDAP users cannot change in-app</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>7) Permissions and Roles</h2>
+      <ul>
+        <li><strong>Admin:</strong> full visibility across users; can manage users, system policies, and global operations.</li>
+        <li><strong>User:</strong> sees/changes own objects only (keys, profiles, CSRs, certs), with limited policy operations.</li>
+        <li><strong>Owner/Admin endpoints:</strong> object-level checks enforce ownership for view/edit/delete actions.</li>
+        <li><strong>Edition gates:</strong> enterprise-only routes return <code>404</code> in community mode.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>8) Input and Format Requirements</h2>
+      <ul>
+        <li><strong>CSR input:</strong> PEM, DER, or base64 accepted in signing/enrollment flows.</li>
+        <li><strong>Profile content:</strong> OpenSSL <code>.cnf</code>-style extension/request sections.</li>
+        <li><strong>Certificate serial:</strong> hexadecimal string is used in status/revocation flows.</li>
+        <li><strong>PFX export:</strong> requires matching private key in DB and non-empty <code>pfx_password</code>.</li>
+        <li><strong>Theme/account forms:</strong> validated enum-style values, then persisted in user settings.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>9) Protocol Endpoints (Machine Clients)</h2>
+      <p>These endpoints are mainly for client/device integrations rather than manual browser use.</p>
+      <ul>
+        <li><code>/ocsp</code>, <code>/ocspv</code>: OCSP responders</li>
+        <li><code>/.well-known/est/cacerts</code> and <code>/.well-known/est/simpleenroll</code></li>
+        <li><code>/scep</code>, <code>/cgi-bin/pkiclient.exe</code>, <code>/mobileconfig</code></li>
+        <li><code>/api/challenge_passwords</code>, <code>/challenge_passwords</code> (enterprise challenge flow)</li>
+      </ul>
+      <p>
+        In Community edition, enterprise feature gates return <code>404</code> for blocked routes.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>10) Admin and Operations Pages</h2>
+      <ul>
+        <li><code>/logs</code>: live log view page</li>
+        <li><code>/logs/last?n=300</code>: tail endpoint used for polling (plain text)</li>
+        <li><code>/config</code>: protected config viewer; requires session secret check against <code>DELETE_SECRET</code></li>
+        <li><code>/inspect</code>: inspect PEM/DER/PKCS/OCSP objects</li>
+        <li><code>/events</code> and <code>/users/events</code>: audit event streams</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>11) Navigation Reference</h2>
+      <div class="mono">
+Navbar primary flow
+- Certs -> /certs
+- RA(sign) -> /sign
+- CSRs -> /requests
+- Keys -> /keys
+- Enrollment -> /ra_policies
+- Certificate Templates -> /profiles
+- VA(crl) -> /va
+- CA -> /ca
+- Events -> /events
+- APIs -> /api
+- Inspect -> /inspect
+- Config -> /config
+- Logs -> /logs
+      </div>
+      <p class="stamp">
+        See also detailed endpoint tree:
+        <a href="repo_web_tree.html">repo_web_tree.html</a>
+      </p>
+      <p class="stamp">
+        Full per-path details:
+        <a href="server_paths_reference.html">server_paths_reference.html</a>
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>12) Common Issues and Fixes</h2>
+      <ul>
+        <li><strong>Cannot access feature page:</strong> check edition (<code>community</code> vs <code>enterprise</code>) and user role.</li>
+        <li><strong>Self-register blocked:</strong> set <code>allow_self_registration=true</code> in <code>config.ini</code>.</li>
+        <li><strong>PFX export fails:</strong> server cannot match certificate public key to stored private key.</li>
+        <li><strong>CSR/profile errors:</strong> verify OpenSSL profile structure and ownership permissions.</li>
+        <li><strong>Password change blocked:</strong> LDAP users must change password in LDAP/AD, not in this app.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>13) Security and Safety Notes</h2>
+      <ul>
+        <li>Treat private keys, PFX exports, and secrets as sensitive material.</li>
+        <li>Limit admin accounts and review <code>/events</code> and <code>/users/events</code> regularly.</li>
+        <li>Use HTTPS deployment and protect access to <code>/config</code> and logs.</li>
+        <li>Revoke compromised certificates immediately and redistribute updated CRL.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>14) FAQ</h2>
+      <ul>
+        <li><strong>Why do some routes return 404?</strong> They are enterprise-gated and disabled in community mode.</li>
+        <li><strong>Why can a user not see an object?</strong> Ownership filtering is applied for non-admin users.</li>
+        <li><strong>Why is password change blocked?</strong> LDAP users are managed externally by LDAP/AD.</li>
+        <li><strong>Why does PFX download fail?</strong> No matching private key is available for the certificate.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>15) Glossary</h2>
+      <ul>
+        <li><strong>CA:</strong> Certificate Authority that signs certificates.</li>
+        <li><strong>CSR:</strong> Certificate Signing Request generated from a private key.</li>
+        <li><strong>CRL:</strong> Certificate Revocation List of revoked serials.</li>
+        <li><strong>OCSP:</strong> Online certificate status protocol.</li>
+        <li><strong>RA Policy:</strong> rules/extension profile used during certificate issuance.</li>
+        <li><strong>PFX/PKCS#12:</strong> bundle format containing certificate + private key (+ chain).</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>16) Appendix</h2>
+      <ul>
+        <li>Endpoint tree: <a href="repo_web_tree.html">repo_web_tree.html</a></li>
+        <li>Per-path technical reference: <a href="server_paths_reference.html">server_paths_reference.html</a></li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

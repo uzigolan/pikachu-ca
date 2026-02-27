@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PKISquire CA - Repo Overview and Web Tree</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --text: #1d2939;
+      --muted: #475467;
+      --accent: #0b6e99;
+      --border: #d0d5dd;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #f6f8fb 0%, #eef4f8 100%);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(16, 24, 40, 0.05);
+    }
+    h1, h2 {
+      margin: 0 0 12px;
+      color: #102a43;
+    }
+    p, li {
+      color: var(--muted);
+    }
+    code {
+      background: #f2f4f7;
+      border: 1px solid #e4e7ec;
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #0f172a;
+    }
+    pre {
+      margin: 0;
+      background: #0f172a;
+      color: #d1fae5;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      padding: 14px;
+      overflow: auto;
+      font-size: 13px;
+    }
+    .stamp {
+      font-size: 12px;
+      color: #667085;
+    }
+    .label {
+      color: var(--accent);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>PKISquire CA - Repository Overview</h1>
+      <p>
+        This repository contains a Flask-based PKI CA server used for certificate lifecycle management:
+        issuance, revocation, CRL publication, and validation. It also includes enrollment protocols
+        (SCEP/EST), OCSP endpoints, user/admin workflows, and optional HashiCorp Vault key isolation.
+      </p>
+      <ul>
+        <li><span class="label">Main app:</span> <code>app.py</code></li>
+        <li><span class="label">Core modules:</span> <code>ca.py</code>, <code>vault_client.py</code>, <code>x509_*.py</code>, <code>users.py</code>, <code>events.py</code></li>
+        <li><span class="label">Templates:</span> <code>html_templates/</code></li>
+        <li><span class="label">Static assets:</span> <code>static/</code></li>
+        <li><span class="label">Config:</span> <code>config.ini</code> with detailed docs in <code>README_CONFIG.md</code></li>
+        <li><span class="label">Scripts:</span> <code>scripts/</code> (migrations, server helpers, Vault helpers)</li>
+        <li><span class="label">Tests:</span> <code>tests/</code> (protocol scripts), <code>tests_repo/</code> (pytest UI/API flows)</li>
+      </ul>
+      <p class="stamp">Page intent: quick architecture + endpoint map for contributors.</p>
+    </div>
+
+    <div class="card">
+      <h2>Web Server Pages Tree (Current)</h2>
+      <p class="stamp">Source: route decorators in <code>app.py</code>, <code>users.py</code>, <code>events.py</code>, <code>x509_profiles.py</code>, <code>x509_keys.py</code>, <code>x509_requests.py</code>, <code>scep.py</code>.</p>
+      <pre>/ (Flask app)
+|-- / , /dashboard
+|   |-- /dashboard/activity_data
+|   |-- /certs
+|   |   |-- /certs/state
+|   |   |-- /view/&lt;int:cert_id&gt;
+|   |   |-- /view_root
+|   |   |-- /view_sub
+|   |   |-- /status/&lt;serial&gt;
+|   |   |-- /expired
+|   |   |-- /submit (POST)
+|   |   |-- /submit_q (POST)
+|   |   |-- /sign
+|   |   |-- /revoke/&lt;int:cert_id&gt; (POST)
+|   |   |-- /delete/&lt;int:cert_id&gt; (POST)
+|   |   `-- /update_validity (POST)
+|   |
+|   |-- /downloads
+|   |   |-- /downloads/&lt;int:cert_id&gt;
+|   |   |-- /downloads/pfx/&lt;int:cert_id&gt; (POST)
+|   |   |-- /downloads/chain
+|   |   |-- /downloads/crl
+|   |   `-- /downloads/all_zip
+|   |
+|   |-- /inspect
+|   |-- /config
+|   |-- /logs
+|   |   `-- /logs/last
+|   |-- /api
+|   |-- /about
+|   |-- /license , /license.html
+|   |-- /favicon.ico
+|   |
+|   |-- /va
+|   |-- /ca
+|   |-- /server_ext
+|   |   |-- /get_server_ext_content
+|   |   `-- /load_profile
+|   |
+|   |-- /ra_policies
+|   |   |-- /ra_policies/state
+|   |   |-- /ra_policies/new
+|   |   |-- /ra_policies/&lt;int:policy_id&gt;/edit
+|   |   `-- /ra_policies/&lt;int:policy_id&gt;/delete (POST)
+|   |
+|   |-- /challenge_passwords
+|   |   |-- /challenge_passwords/data
+|   |   |-- /api/challenge_passwords (POST)
+|   |   |-- /delete_challenge_password (POST)
+|   |   `-- /delete_all_expired_challenge_passwords (POST)
+|   |
+|   |-- /security
+|   |   |-- /security/readme
+|   |   |-- /security/openssl-info
+|   |   |-- /security/bandit-report-interactive
+|   |   |-- /security/pip-audit-interactive
+|   |   |-- /security/safety-vulns
+|   |   |-- /security/safety-licenses
+|   |   `-- /security/pip-licenses-interactive
+|   |
+|   |-- /tests/readme
+|   |-- /reports/ui/latest
+|   |-- /reports/api/latest
+|   |
+|   |-- /ocsp , /ocspv
+|   `-- /.well-known/est
+|       |-- /.well-known/est/cacerts (GET)
+|       `-- /.well-known/est/simpleenroll (POST)
+|
+|-- /users (Blueprint: users_bp, url_prefix=/users)
+|   |-- /users/register
+|   |-- /users/login
+|   |-- /users/logout
+|   |-- /users/account helpers:
+|   |   |-- /account
+|   |   |-- /account/theme (POST)
+|   |   `-- /change_password (POST)
+|   |-- /users/manage
+|   |-- /users/add
+|   |-- /users/delete/&lt;int:user_id&gt; (POST)
+|   |-- /users/approve_user/&lt;int:user_id&gt; (POST)
+|   |-- /users/toggle_active/&lt;int:user_id&gt; (POST)
+|   |-- /users/change_role/&lt;int:user_id&gt; (POST)
+|   |-- /users/reset_password/&lt;int:user_id&gt; (POST)
+|   |-- /users/admin_logout/&lt;int:user_id&gt; (POST)
+|   |-- /users/api
+|   |-- /users/events
+|   |-- /users/events/api
+|   |-- /users/tokens
+|   |-- /users/tokens/state
+|   |-- /users/tokens/&lt;int:token_id&gt;/delete (POST)
+|   `-- /users/test_session_db
+|
+|-- /events (Blueprint: events bp, url_prefix=/events)
+|   |-- /events/
+|   |-- /events/api
+|   `-- /events/&lt;int:event_id&gt;
+|
+|-- X.509 Blueprints (no url_prefix; mounted as absolute paths)
+|   |-- /generate
+|   |-- /keys
+|   |   |-- /keys/state
+|   |   |-- /keys/&lt;int:key_id&gt;
+|   |   |-- /keys/&lt;int:key_id&gt;/download
+|   |   `-- /keys/&lt;int:key_id&gt;/delete (POST)
+|   |-- /requests
+|   |   |-- /requests/state
+|   |   |-- /requests/generate
+|   |   |-- /requests/profile_content
+|   |   |-- /requests/&lt;int:csr_id&gt;
+|   |   |-- /requests/&lt;int:csr_id&gt;/download
+|   |   `-- /requests/&lt;int:csr_id&gt;/delete (POST)
+|   |-- /profiles/
+|   |   |-- /profiles/state
+|   |   |-- /profiles/new
+|   |   |-- /profiles/view/&lt;name&gt;
+|   |   |-- /profiles/edit/&lt;name&gt;
+|   |   `-- /profiles/delete/&lt;name&gt; (POST)
+|   |-- /template
+|   `-- /x509_templates/ (legacy path)
+|
+`-- SCEP Blueprint (registered only when enabled)
+    |-- /scep
+    |-- /cgi-bin/pkiclient.exe
+    `-- /mobileconfig
+</pre>
+      <p class="stamp">Updated from source scan on 2026-02-27.</p>
+    </div>
+  </div>
+</body>
+</html>
