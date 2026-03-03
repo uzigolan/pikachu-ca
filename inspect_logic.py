@@ -3,6 +3,8 @@ import os
 import subprocess
 import tempfile
 import time
+import shutil
+from pathlib import Path
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
@@ -29,6 +31,92 @@ def _run_command(cmd, logger, text=True, input_data=None, check=False):
 def _read_file_text(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read().strip()
+
+
+def _convert_private_key_to_putty(path, logger):
+    """Convert a private key PEM to PuTTY PPK text when possible.
+
+    Returns: (ppk_text_or_none, error_or_none)
+    """
+    def _resolve_winscp():
+        ws = shutil.which("winscp.com")
+        if ws:
+            return ws
+        repo_root = Path(__file__).resolve().parent
+        pf86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+        pf64 = os.environ.get("ProgramFiles", r"C:\Program Files")
+        candidates = [
+            repo_root / "utils" / "winscp.com",
+            repo_root / "utils" / "WinSCP.com",
+            repo_root / "utils" / "winscp" / "winscp.com",
+            Path(pf86) / "WinSCP" / "WinSCP.com",
+            Path(pf64) / "WinSCP" / "WinSCP.com",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        return None
+
+    def _resolve_puttygen():
+        pg = shutil.which("puttygen")
+        if pg:
+            return pg
+        repo_root = Path(__file__).resolve().parent
+        candidates = [
+            repo_root / "utils" / "puttygen",
+            repo_root / "utils" / "puttygen.exe",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        return None
+
+    # PuTTY conversion is requested for RSA private keys in inspect UI.
+    rsa_probe = _run_command(["openssl", "rsa", "-in", path, "-check", "-noout"], logger, text=True)
+    if rsa_probe.returncode != 0:
+        return None, "PuTTY conversion is available only for RSA private keys."
+
+    ppk_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".ppk")
+    ppk_tmp.close()
+    try:
+        is_windows = (os.name == "nt")
+        if is_windows:
+            winscp_bin = _resolve_winscp()
+            if not winscp_bin:
+                return None, "winscp.com is not available (PATH or Program Files WinSCP)."
+            ws_cmd = [winscp_bin, "/keygen", path, "-o", ppk_tmp.name]
+            ws_proc = _run_command(ws_cmd, logger, text=True)
+            if ws_proc.returncode == 0 and os.path.exists(ppk_tmp.name) and os.path.getsize(ppk_tmp.name) > 0:
+                return _read_file_text(ppk_tmp.name), None
+            ws_err = (ws_proc.stderr or ws_proc.stdout or "").strip()
+            return None, (ws_err or "WinSCP keygen did not produce a .ppk file.")
+
+        puttygen_bin = _resolve_puttygen()
+        if not puttygen_bin:
+            return None, "puttygen is not available (install putty-tools or add puttygen to PATH)."
+
+        attempts = [
+            [puttygen_bin, path, "-o", ppk_tmp.name],
+            [puttygen_bin, path, "-O", "private", "-o", ppk_tmp.name],
+            [puttygen_bin, path, "-O", "private", "-o", ppk_tmp.name, "-C", "imported-openssh-key"],
+        ]
+        last_err = "puttygen did not produce a .ppk file."
+        for cmd in attempts:
+            try:
+                if os.path.exists(ppk_tmp.name):
+                    os.unlink(ppk_tmp.name)
+            except OSError:
+                pass
+            proc = _run_command(cmd, logger, text=True)
+            if proc.returncode == 0 and os.path.exists(ppk_tmp.name) and os.path.getsize(ppk_tmp.name) > 0:
+                return _read_file_text(ppk_tmp.name), None
+            last_err = (proc.stderr or proc.stdout or last_err).strip()
+        return None, last_err
+    finally:
+        try:
+            os.unlink(ppk_tmp.name)
+        except OSError:
+            pass
 
 
 def run_inspect(
@@ -155,8 +243,13 @@ def run_inspect(
                             "pkcs8": pkcs8_pem or None,
                             "pkcs1": priv_formats["pkcs1"],
                             "sec1": priv_formats["sec1"],
+                            "putty_ppk": None,
                             "errors": errors
                         }
+                        putty_ppk, putty_err = _convert_private_key_to_putty(tmp_pem_path, logger)
+                        formats["putty_ppk"] = putty_ppk
+                        if putty_err:
+                            formats["errors"]["putty_ppk"] = putty_err
                 finally:
                     os.unlink(tmp_pem_path)
             elif detected == "X.509 Certificate" and include_formats:
@@ -295,8 +388,13 @@ def run_inspect(
                 "pkcs8": pkcs8_pem or data,
                 "pkcs1": priv_formats["pkcs1"],
                 "sec1": priv_formats["sec1"],
+                "putty_ppk": None,
                 "errors": errors
             }
+            putty_ppk, putty_err = _convert_private_key_to_putty(path, logger)
+            formats["putty_ppk"] = putty_ppk
+            if putty_err:
+                formats["errors"]["putty_ppk"] = putty_err
         elif chosen == "X.509 Certificate":
             try:
                 cert = x509.load_pem_x509_certificate(normalized.encode("utf-8"), default_backend())

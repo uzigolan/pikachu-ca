@@ -11,7 +11,7 @@
     </div>
     <div class="form-group form-check">
       <input class="form-check-input" type="checkbox" id="show_formats" name="show_formats" {% if include_formats %}checked{% endif %}>
-      <label class="form-check-label" for="show_formats">Show formats (PKCS8 / SSH2 / SSH2 bare)</label>
+      <label class="form-check-label" for="show_formats">Show formats (PKCS8 / SSH2 / SSH2 bare / PuTTY PPK)</label>
     </div>
 
     {% if der_mode %}
@@ -63,6 +63,9 @@
             <a class="nav-link" id="inspect-private-sec1-tab" data-toggle="tab" href="#inspect-private-sec1" role="tab" aria-controls="inspect-private-sec1" aria-selected="false">SEC1</a>
           </li>
         {% endif %}
+        <li class="nav-item">
+          <a class="nav-link" id="inspect-private-putty-tab" data-toggle="tab" href="#inspect-private-putty" role="tab" aria-controls="inspect-private-putty" aria-selected="false">PuTTY (PPK)</a>
+        </li>
       {% elif formats and formats.kind == "certificate" %}
         <li class="nav-item">
           <a class="nav-link" id="inspect-cert-pkcs8-tab" data-toggle="tab" href="#inspect-cert-pkcs8" role="tab" aria-controls="inspect-cert-pkcs8" aria-selected="false">PKCS8</a>
@@ -121,6 +124,13 @@
             <pre class="mb-0">{{ formats.sec1 }}</pre>
           </div>
         {% endif %}
+        <div class="tab-pane fade" id="inspect-private-putty" role="tabpanel" aria-labelledby="inspect-private-putty-tab">
+          {% if formats.putty_ppk %}
+            <pre class="mb-0">{{ formats.putty_ppk }}</pre>
+          {% else %}
+            <p><em>PuTTY PPK unavailable{% if (formats.errors|default({})).putty_ppk %}: {{ (formats.errors|default({})).putty_ppk }}{% endif %}</em></p>
+          {% endif %}
+        </div>
       {% elif formats and formats.kind == "certificate" %}
         <div class="tab-pane fade" id="inspect-cert-pkcs8" role="tabpanel" aria-labelledby="inspect-cert-pkcs8-tab">
           {% if formats.public_pem %}
@@ -149,8 +159,10 @@
     </div>
     {% if formats and formats.kind == "certificate" %}
       <p class="mt-2 text-muted"><em>PKCS8, SSH2, and SSH2 (bare) show the public key extracted from the inspected certificate.</em></p>
+    {% elif formats and formats.kind == "private_key" %}
+      <p class="mt-2 text-muted"><em>PuTTY (PPK) is generated from RSA private keys using OS-specific tools: Windows uses WinSCP keygen (winscp.com), Linux/Unix uses puttygen.</em></p>
     {% endif %}
   {% endif %}
-  <p><strong>Supported types:</strong> {{ der_types|join(', ') }}, Public Key (OpenSSH), Public Key (RFC4716), Private Key (PKCS8), Private Key (PKCS1), Private Key (SEC1)</p>
+  <p><strong>Supported types:</strong> {{ der_types|join(', ') }}, Public Key (OpenSSH), Public Key (RFC4716), Private Key (PKCS8), Private Key (PKCS1), Private Key (SEC1), Private Key (PuTTY PPK for RSA)</p>
 {% endblock %}
 
