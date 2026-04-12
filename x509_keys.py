@@ -17,7 +17,7 @@ PQC_ALGORITHM_CHOICES = [
     ("mldsa44", "mldsa44 (Dilithium2 / NIST L1)"),
     ("mldsa65", "mldsa65 (Dilithium3 / NIST L3)"),
     ("mldsa87", "mldsa87 (Dilithium5 / NIST L5)"),
-    ("p384_mldsa65", "P-384 / ML-DSA-65 Hybrid"),
+    ("p384_mldsa65", "P-384 / ML-DSA-65 Composite"),
 ]
 
 PQC_ALGORITHM_LABELS = dict(PQC_ALGORITHM_CHOICES)
