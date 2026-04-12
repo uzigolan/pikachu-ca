@@ -54,7 +54,7 @@
           {% elif key.key_type == "EC" %}
             {{ key.curve_name }}
           {% elif key.key_type == "PQC" %}
-            {{ key.pqc_alg }}
+            {{ key.pqc_alg_display }}
           {% else %}
             N/A
           {% endif %}

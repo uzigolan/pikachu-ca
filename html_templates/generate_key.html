@@ -40,9 +40,9 @@
     <div id="pqc-options" class="form-group" style="display:none;">
       <label for="pqc_alg">PQC Algorithm:</label>
       <select name="pqc_alg" id="pqc_alg" class="form-control">
-        <option value="mldsa44">mldsa44 (Dilithium2 / NIST L1)</option>
-        <option value="mldsa65">mldsa65 (Dilithium3 / NIST L3)</option>
-        <option value="mldsa87">mldsa87 (Dilithium5 / NIST L5)</option>
+        {% for pqc_value, pqc_label in pqc_algorithms %}
+        <option value="{{ pqc_value }}">{{ pqc_label }}</option>
+        {% endfor %}
       </select>
     </div>
 

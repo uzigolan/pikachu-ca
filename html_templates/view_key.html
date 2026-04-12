@@ -12,7 +12,7 @@
   {% elif key.key_type == "EC" %}
     <p><strong>Curve:</strong> {{ key.curve_name }}</p>
   {% elif key.key_type == "PQC" %}
-    <p><strong>Algorithm:</strong> {{ key.pqc_alg }}</p>
+    <p><strong>Algorithm:</strong> {{ key.pqc_alg_display }}</p>
   {% endif %}
 
   <p><strong>Created At:</strong> {{ key.created_at.strftime('%Y-%m-%d %H:%M') }}</p>

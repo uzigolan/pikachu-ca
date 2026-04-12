@@ -13,6 +13,19 @@ from edition import feature_enabled
 
 x509_keys_bp = Blueprint("keys", __name__, template_folder="html_templates")
 
+PQC_ALGORITHM_CHOICES = [
+    ("mldsa44", "mldsa44 (Dilithium2 / NIST L1)"),
+    ("mldsa65", "mldsa65 (Dilithium3 / NIST L3)"),
+    ("mldsa87", "mldsa87 (Dilithium5 / NIST L5)"),
+    ("p384_mldsa65", "P-384 / ML-DSA-65 Hybrid"),
+]
+
+PQC_ALGORITHM_LABELS = dict(PQC_ALGORITHM_CHOICES)
+
+
+def get_pqc_algorithm_label(pqc_alg):
+    return PQC_ALGORITHM_LABELS.get(pqc_alg, pqc_alg)
+
 class Key(db.Model):
     __tablename__ = "keys"
     id         = db.Column(db.Integer,   primary_key=True)
@@ -68,6 +81,10 @@ def generate_key():
                     return redirect(url_for("keys.generate_key"))
                 # pull the PQC algorithm choice
                 pqc_alg = request.form.get("pqc_alg", "mldsa44")
+                if pqc_alg not in PQC_ALGORITHM_LABELS:
+                    flash("Invalid PQC algorithm selected.", "error")
+                    os.unlink(priv_path)
+                    return redirect(url_for("keys.generate_key"))
                 cmd = ["openssl", "genpkey", "-algorithm", pqc_alg]
                 # Add provider args only if oqsprovider is available
                 cmd.extend(get_provider_args())
@@ -136,7 +153,12 @@ def generate_key():
         flash("Key generated successfully.", "success")
         return redirect(url_for("keys.list_keys"))
 
-    return render_template("generate_key.html", pqc_available=pqc_available, pqc_enabled=pqc_enabled)
+    return render_template(
+        "generate_key.html",
+        pqc_available=pqc_available,
+        pqc_enabled=pqc_enabled,
+        pqc_algorithms=PQC_ALGORITHM_CHOICES,
+    )
 
 def generate_keyX():
     if request.method == "POST":
@@ -355,6 +377,7 @@ def list_keys():
         is_supported, error_msg = check_key_supported(k)
         k.is_supported = is_supported
         k.support_error = error_msg
+        k.pqc_alg_display = get_pqc_algorithm_label(k.pqc_alg) if k.key_type == "PQC" else None
         local_keys.append(k)
     return render_template("list_keys.html", keys=local_keys, is_admin=current_user.is_admin())
 
@@ -380,6 +403,7 @@ def view_key(key_id):
     else:
         key_obj = Key.query.filter_by(id=key_id, user_id=current_user.id).first_or_404()
     key_formats = build_key_formats(key_obj)
+    key_obj.pqc_alg_display = get_pqc_algorithm_label(key_obj.pqc_alg) if key_obj.key_type == "PQC" else None
     return render_template(
         "view_key.html",
         key=key_obj,
