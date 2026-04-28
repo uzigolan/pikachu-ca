@@ -4,8 +4,9 @@ import subprocess
 import tempfile
 import shutil
 import getpass
+from urllib.parse import unquote
 from datetime import datetime
-from flask import Blueprint, request, render_template, redirect, url_for, flash, send_file, make_response, jsonify
+from flask import Blueprint, request, render_template, redirect, url_for, flash, send_file, make_response, jsonify, abort
 from flask_login import login_required, current_user
 from extensions import db
 from openssl_utils import get_provider_args, is_pqc_available
@@ -25,6 +26,66 @@ PQC_ALGORITHM_LABELS = dict(PQC_ALGORITHM_CHOICES)
 
 def get_pqc_algorithm_label(pqc_alg):
     return PQC_ALGORITHM_LABELS.get(pqc_alg, pqc_alg)
+
+
+def _extract_api_token():
+    raw_token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        raw_token = auth_header.split(" ", 1)[1].strip()
+    if raw_token:
+        return raw_token
+    if request.headers.get("X-API-Token"):
+        return request.headers.get("X-API-Token").strip()
+    if request.args.get("token"):
+        return request.args.get("token").strip()
+    if request.is_json and isinstance(request.json, dict) and request.json.get("token"):
+        return str(request.json.get("token")).strip()
+    return None
+
+
+def _lookup_key_for_token(key_name):
+    if not feature_enabled("api_tokens"):
+        abort(404)
+
+    from users import verify_api_token
+    from user_models import get_user_by_id
+
+    raw_token = _extract_api_token()
+    if not raw_token:
+        return None, (jsonify({"error": "API token required"}), 401)
+
+    token_info = verify_api_token(raw_token)
+    if not token_info:
+        return None, (jsonify({"error": "Invalid or expired API token"}), 401)
+
+    token_user = get_user_by_id(token_info["user_id"])
+    if token_user is None:
+        return None, (jsonify({"error": "Token owner not found"}), 404)
+
+    normalized_name = (unquote(key_name or "")).strip()
+    if not normalized_name:
+        return None, (jsonify({"error": "Key name is required"}), 400)
+
+    query = Key.query.filter_by(name=normalized_name)
+    if not token_user.is_admin():
+        query = query.filter_by(user_id=token_info["user_id"])
+
+    key_obj = query.order_by(Key.created_at.desc(), Key.id.desc()).first()
+    if not key_obj:
+        return None, (jsonify({"error": f"Key '{normalized_name}' not found"}), 404)
+
+    return key_obj, token_info
+
+
+def _api_key_response(pem_text, key_obj, key_part):
+    response = make_response(pem_text)
+    response.headers["Content-Type"] = "application/x-pem-file; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="{key_obj.name}_{key_part}.pem"'
+    response.headers["X-Key-Id"] = str(key_obj.id)
+    response.headers["X-Key-Name"] = key_obj.name
+    response.headers["X-Key-Type"] = key_obj.key_type
+    return response
 
 class Key(db.Model):
     __tablename__ = "keys"
@@ -431,6 +492,44 @@ def download_key(key_id):
         download_name=f"{key_obj.name}.pem",
         mimetype="application/x-pem-file"
     )
+
+
+@x509_keys_bp.route("/api/keys/<path:key_name>/private", methods=["GET"])
+def api_get_private_key_by_name(key_name):
+    key_obj, token_info_or_response = _lookup_key_for_token(key_name)
+    if key_obj is None:
+        return token_info_or_response
+    try:
+        from events import log_event
+        log_event(
+            event_type="read",
+            resource_type="key_private",
+            resource_name=key_obj.name,
+            user_id=token_info_or_response["user_id"],
+            details={"via": "api_token", "key_id": key_obj.id},
+        )
+    except Exception:
+        pass
+    return _api_key_response(key_obj.private_key, key_obj, "private")
+
+
+@x509_keys_bp.route("/api/keys/<path:key_name>/public", methods=["GET"])
+def api_get_public_key_by_name(key_name):
+    key_obj, token_info_or_response = _lookup_key_for_token(key_name)
+    if key_obj is None:
+        return token_info_or_response
+    try:
+        from events import log_event
+        log_event(
+            event_type="read",
+            resource_type="key_public",
+            resource_name=key_obj.name,
+            user_id=token_info_or_response["user_id"],
+            details={"via": "api_token", "key_id": key_obj.id},
+        )
+    except Exception:
+        pass
+    return _api_key_response(key_obj.public_key, key_obj, "public")
 
 
 

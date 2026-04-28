@@ -5,10 +5,17 @@ import subprocess
 import sys
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 import requests
+
+from edition import feature_enabled
+from enterprise.tokens import create_api_token
+from extensions import db
+from user_models import create_user_db, get_user_by_username
+from x509_keys import Key
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -18,6 +25,21 @@ EDITION = (os.getenv("PIKACHU_EDITION") or "community").strip().lower()
 
 def _is_enterprise():
     return EDITION == "enterprise"
+
+
+def _login(client, username, password):
+    return client.post(
+        "/users/login",
+        data={"username": username, "password": password},
+        follow_redirects=True,
+    )
+
+
+def _ensure_user(app, username, password, role="user"):
+    with app.app_context():
+        user = get_user_by_username(username)
+        if user is None:
+            create_user_db(username, password, role=role, status="active")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -242,3 +264,117 @@ def test_enterprise_endpoint_ocsp_present(client):
         assert resp.status_code != 404, "OCSP endpoint is unavailable in enterprise mode"
     else:
         assert resp.status_code == 404, "OCSP endpoint should be blocked in community mode"
+
+
+@pytest.mark.skipif(not feature_enabled("api_tokens"), reason="API tokens are enterprise-only")
+def test_key_api_get_material_by_name_with_api_token(client, app):
+    _ensure_user(app, "user", "userpass", role="user")
+
+    _login(client, "user", "userpass")
+    client.post("/generate", data={"key_type": "RSA", "key_name": "api-key-test"}, follow_redirects=True)
+
+    with app.app_context():
+        user = get_user_by_username("user")
+        assert user is not None
+        key_obj = Key.query.filter_by(name="api-key-test", user_id=user.id).order_by(Key.id.desc()).first()
+        assert key_obj is not None
+        raw_token, _ = create_api_token(user.id, "keys-api-test-token", validity="1d")
+
+    headers = {"Authorization": f"Bearer {raw_token}"}
+
+    private_resp = client.get("/api/keys/api-key-test/private", headers=headers, base_url="https://localhost:4443")
+    assert private_resp.status_code == 200
+    assert b"BEGIN PRIVATE KEY" in private_resp.data or b"BEGIN RSA PRIVATE KEY" in private_resp.data
+    assert private_resp.headers.get("X-Key-Name") == "api-key-test"
+
+    public_resp = client.get("/api/keys/api-key-test/public", headers=headers, base_url="https://localhost:4443")
+    assert public_resp.status_code == 200
+    assert b"BEGIN PUBLIC KEY" in public_resp.data
+    assert public_resp.headers.get("X-Key-Name") == "api-key-test"
+
+
+@pytest.mark.skipif(not feature_enabled("api_tokens"), reason="API tokens are enterprise-only")
+def test_key_api_requires_token(client):
+    resp = client.get("/api/keys/missing/private", base_url="https://localhost:4443")
+    assert resp.status_code == 401
+    assert resp.is_json
+    assert resp.get_json()["error"] == "API token required"
+
+
+@pytest.mark.skipif(not feature_enabled("api_tokens"), reason="API tokens are enterprise-only")
+def test_key_api_allows_normal_https_port(client, app):
+    username = f"https_user_{uuid.uuid4().hex[:8]}"
+    key_name = f"https-key-{uuid.uuid4().hex[:8]}"
+    public_pem = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtesttesttesttesttesttest\n-----END PUBLIC KEY-----\n"
+    private_pem = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDtesttesttesttest\n-----END PRIVATE KEY-----\n"
+    _ensure_user(app, username, "httpspass", role="user")
+
+    with app.app_context():
+        https_user = get_user_by_username(username)
+        assert https_user is not None
+        db.session.add(
+            Key(
+                name=key_name,
+                key_type="RSA",
+                key_size=2048,
+                private_key=private_pem,
+                public_key=public_pem,
+                created_at=datetime.utcnow(),
+                user_id=https_user.id,
+            )
+        )
+        db.session.commit()
+        raw_token, _ = create_api_token(https_user.id, "https-token", validity="1d")
+
+    resp = client.get(
+        f"/api/keys/{key_name}/public",
+        headers={"Authorization": f"Bearer {raw_token}"},
+        base_url="https://localhost:443",
+    )
+    assert resp.status_code == 200
+    assert b"BEGIN PUBLIC KEY" in resp.data
+
+
+@pytest.mark.skipif(not feature_enabled("api_tokens"), reason="API tokens are enterprise-only")
+def test_key_api_user_token_cannot_access_other_users_key(client, app):
+    _ensure_user(app, "alice", "alicepass", role="user")
+    _ensure_user(app, "bob", "bobpass", role="user")
+
+    _login(client, "alice", "alicepass")
+    client.post("/generate", data={"key_type": "RSA", "key_name": "alice-only-key"}, follow_redirects=True)
+
+    with app.app_context():
+        bob = get_user_by_username("bob")
+        assert bob is not None
+        bob_token, _ = create_api_token(bob.id, "bob-token", validity="1d")
+
+    resp = client.get(
+        "/api/keys/alice-only-key/private",
+        headers={"Authorization": f"Bearer {bob_token}"},
+        base_url="https://localhost:4443",
+    )
+    assert resp.status_code == 404
+    assert resp.is_json
+    assert resp.get_json()["error"] == "Key 'alice-only-key' not found"
+
+
+@pytest.mark.skipif(not feature_enabled("api_tokens"), reason="API tokens are enterprise-only")
+def test_key_api_admin_token_can_access_other_users_key(client, app):
+    _ensure_user(app, "carol", "carolpass", role="user")
+    _ensure_user(app, "admin_api", "adminpass", role="admin")
+
+    _login(client, "carol", "carolpass")
+    client.post("/generate", data={"key_type": "RSA", "key_name": "carol-key"}, follow_redirects=True)
+
+    with app.app_context():
+        admin_user = get_user_by_username("admin_api")
+        assert admin_user is not None
+        admin_token, _ = create_api_token(admin_user.id, "admin-token", validity="1d")
+
+    resp = client.get(
+        "/api/keys/carol-key/public",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        base_url="https://localhost:4443",
+    )
+    assert resp.status_code == 200
+    assert b"BEGIN PUBLIC KEY" in resp.data

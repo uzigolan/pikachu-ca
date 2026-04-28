@@ -85,6 +85,8 @@ python app.py
 - **trusted_ssl_cert**: Path to trusted HTTPS certificate.
 - **trusted_ssl_key**: Path to trusted HTTPS private key.
 - **trusted_port**: Trusted HTTPS port (default: 4443).
+- This listener requires a client certificate signed by the CA chain loaded by the server.
+- Token-authenticated key material API routes (`/api/keys/<name>/private`, `/api/keys/<name>/public`) also work on this listener and benefit from mTLS when used here.
 
 ## [PATHS]
 - **crl_path**: Path to CRL file.

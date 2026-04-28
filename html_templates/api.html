@@ -21,7 +21,7 @@
     <tbody>
       <!-- CA General -->
       <tr>
-        <td rowspan="5">CA General<br><small class="text-muted">Community + Enterprise</small></td>
+        <td rowspan="7">CA General<br><small class="text-muted">Community + Enterprise</small></td>
         <td>Download CA Chain</td>
         <td>
           <pre>curl -k https://pkisquire-ca.iot-rad.com/downloads/chain</pre>
@@ -55,6 +55,30 @@
           <pre>curl -k https://pkisquire-ca.iot-rad.com/requests/1/download</pre>
         </td>
         <td>Serves saved CSR if available</td>
+      </tr>
+      <tr>
+        <td>Get Private Key by Name</td>
+        <td>
+          <pre>curl -k \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://pkisquire-ca.iot-rad.com/api/keys/my-key/private</pre>
+          <pre>curl --cert client.crt --key client.key \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://pkisquire-ca.iot-rad.com:4443/api/keys/my-key/private</pre>
+        </td>
+        <td>Enterprise only. Returns private key PEM for the named key. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own keys only; admin token may access any key.</td>
+      </tr>
+      <tr>
+        <td>Get Public Key by Name</td>
+        <td>
+          <pre>curl -k \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://pkisquire-ca.iot-rad.com/api/keys/my-key/public</pre>
+          <pre>curl --cert client.crt --key client.key \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://pkisquire-ca.iot-rad.com:4443/api/keys/my-key/public</pre>
+        </td>
+        <td>Enterprise only. Returns public key PEM for the named key. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own keys only; admin token may access any key.</td>
       </tr>
 
 

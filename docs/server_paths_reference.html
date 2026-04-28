@@ -138,6 +138,8 @@
         <tr><td><code>/keys/&lt;int:key_id&gt;</code></td><td>GET</td><td>Owner/Admin</td><td>Shows key detail and derived formats (PKCS#1/SEC1/RFC4716 where applicable).</td><td>Output: HTML view.</td></tr>
         <tr><td><code>/keys/&lt;int:key_id&gt;/download</code></td><td>GET</td><td>Owner/Admin</td><td>Downloads private key PEM.</td><td>Output: PEM attachment.</td></tr>
         <tr><td><code>/keys/&lt;int:key_id&gt;/delete</code></td><td>POST</td><td>Owner/Admin</td><td>Deletes key record.</td><td>Output: redirect to <code>/keys</code>.</td></tr>
+        <tr><td><code>/api/keys/&lt;name&gt;/private</code></td><td>GET</td><td>Enterprise token over HTTPS or TRUSTED_HTTPS mTLS</td><td>Returns private key PEM by key name.</td><td>Requires API token. Also works on trusted listener with client cert. User token sees own keys only; admin token may access any key.</td></tr>
+        <tr><td><code>/api/keys/&lt;name&gt;/public</code></td><td>GET</td><td>Enterprise token over HTTPS or TRUSTED_HTTPS mTLS</td><td>Returns public key PEM by key name.</td><td>Requires API token. Also works on trusted listener with client cert. User token sees own keys only; admin token may access any key.</td></tr>
       </table>
     </div>
 

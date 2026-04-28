@@ -2,7 +2,7 @@
 
 Two pytest suites live here:
 - `test_certificates_ui.py`: 17-step UI-style certificate lifecycle with 5s pauses between steps.
-- `test_certificates_api.py`: API/PowerShell flows (basic endpoints, EST, EST mTLS, SCEP, SCEP with challenge) plus artifact/DB cleanup.
+- `test_certificates_api.py`: API/PowerShell flows (basic endpoints, EST, EST mTLS, SCEP, SCEP with challenge, and token-authenticated key API coverage) plus artifact/DB cleanup.
 
 ## Quick start
 - Activate venv: `.\.venv\Scripts\activate`
@@ -66,10 +66,17 @@ Two pytest suites live here:
   | `test_est_enrollment_via_estclient_go_mtls` | EST mTLS enrollment via estclient-go              |
   | `test_sscep_core`                           | SCEP core flow (no challenge password)            |
   | `test_sscep_with_challenge_password`        | SCEP flow using challenge password via API token  |
+  | `test_key_api_*`                            | Key material API via token over HTTPS or TRUSTED_HTTPS |
 
 - Edition behavior:
   - In `community`, enterprise-only API/protocol tests are skipped or assert `404`.
   - In `enterprise`, those tests are expected to run.
+- Key API behavior covered in the suite:
+  - `GET /api/keys/<name>/private` and `GET /api/keys/<name>/public`
+  - Requires API token
+  - Works on normal HTTPS and on `TRUSTED_HTTPS` (`https://...:4443` by default)
+  - Normal user token can access only that user's keys
+  - Admin token can access other users' keys
 
 - Full run (self-contained HTML, minute timestamp):
   ```powershell

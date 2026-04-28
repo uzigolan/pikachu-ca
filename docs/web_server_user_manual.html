@@ -265,6 +265,7 @@
         <li><code>/.well-known/est/cacerts</code> and <code>/.well-known/est/simpleenroll</code></li>
         <li><code>/scep</code>, <code>/cgi-bin/pkiclient.exe</code>, <code>/mobileconfig</code></li>
         <li><code>/api/challenge_passwords</code>, <code>/challenge_passwords</code> (enterprise challenge flow)</li>
+        <li><code>/api/keys/&lt;name&gt;/private</code>, <code>/api/keys/&lt;name&gt;/public</code> (enterprise token API over HTTPS, with optional TRUSTED_HTTPS mTLS)</li>
       </ul>
       <p>
         In Community edition, enterprise feature gates return <code>404</code> for blocked routes.

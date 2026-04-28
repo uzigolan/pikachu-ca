@@ -313,6 +313,24 @@ When `[SCEP] challenge_password_enabled = true`:
 
 Generate and monitor challenge passwords at `/challenge_passwords` in the web UI. EST and other protocols are unaffected.
 
+## Token Key API
+
+In enterprise mode, users can generate API tokens under `/users/tokens` and use them with the key material API:
+- `GET /api/keys/<name>/private`
+- `GET /api/keys/<name>/public`
+
+These endpoints require both:
+- a valid API token
+- HTTPS access to the server
+
+They work on:
+- normal `[HTTPS]`
+- `[TRUSTED_HTTPS]` (default `https://<host>:4443`), where the client must present a certificate signed by the CA trusted by the server
+
+Authorization scope:
+- normal user token: only that user's own keys
+- admin token: may access any user's keys
+
 ---
 
 ## Database Initialization and Migration
