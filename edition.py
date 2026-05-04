@@ -5,6 +5,7 @@ _ENTERPRISE_FEATURES = {
     "est",
     "scep",
     "challenge_passwords",
+    "preshared_keys",
     "api_tokens",
     "ocsp",
     "ldap",

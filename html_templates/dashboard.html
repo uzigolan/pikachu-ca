@@ -202,6 +202,7 @@
       "CSRs",
       "Policies",
       "Templates",
+      "Pre-Shared Keys",
       "Challenge Passwords"
     ];
 
@@ -212,6 +213,7 @@
       "CSRs": "rectRot",
       "Policies": "cross",
       "Templates": "star",
+      "Pre-Shared Keys": "rectRounded",
       "Challenge Passwords": "triangle"
     };
 
@@ -223,6 +225,7 @@
       if (resourceType === "request") return "CSRs";
       if (resourceType === "policy") return "Policies";
       if (resourceType === "profile") return "Templates";
+      if (resourceType === "preshared_key") return "Pre-Shared Keys";
       if (resourceType === "challenge_password") return "Challenge Passwords";
       return null;
     }

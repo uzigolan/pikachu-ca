@@ -1,0 +1,225 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2>Pre-Shared Keys</h2>
+  <form method="POST" class="mb-4">
+    <div class="form-row">
+      <div class="form-group col-md-3">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" class="form-control" placeholder="device-001">
+      </div>
+      <div class="form-group col-md-2">
+        <label for="length">Length</label>
+        <input id="length" name="length" type="number" class="form-control" min="4" max="256" value="{{ default_length }}">
+      </div>
+      <div class="form-group col-md-2">
+        <label for="validity">Validity</label>
+        <input id="validity" name="validity" type="text" class="form-control" value="{{ default_validity }}">
+      </div>
+      <div class="form-group col-md-2">
+        <label for="purpose">Purpose</label>
+        <input id="purpose" name="purpose" type="text" class="form-control" placeholder="mqtt">
+      </div>
+      <div class="form-group col-md-3">
+        <label for="note">Note</label>
+        <input id="note" name="note" type="text" class="form-control" placeholder="Optional note">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Generate New Pre-Shared Key</button>
+  </form>
+
+  {% if generated %}
+    <div class="alert alert-success">
+      <strong>Generated Pre-Shared Key:</strong>
+      <code id="generated-psk">{{ generated.secret_value }}</code>
+      <button type="button" class="btn btn-sm btn-outline-primary ml-2" onclick="copyGeneratedPsk()">Copy</button>
+      <br>
+      <small>
+        Name: <b>{{ generated.name }}</b>
+        {% if generated.purpose %}| Purpose: <b>{{ generated.purpose }}</b>{% endif %}
+        | Expires: <b>{{ generated.expires_at or "never" }}</b>
+      </small>
+    </div>
+  {% endif %}
+
+  {% if preshared_keys %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="form-inline">
+        <label for="pageSizeSelect" class="mr-2">Show:</label>
+        <select id="pageSizeSelect" class="form-control form-control-sm mr-2" onchange="changePageSize()">
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+        <span id="pageInfo" class="mr-3"></span>
+      </div>
+      <div>
+        <button class="btn btn-sm btn-secondary" onclick="previousPage()" id="prevBtn">← Previous</button>
+        <button class="btn btn-sm btn-secondary" onclick="nextPage()" id="nextBtn">Next →</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by key, name, purpose, user, or date">
+    </div>
+    <table id="pskTable" class="table table-bordered table-sm">
+      <thead>
+        <tr>
+          <th style="cursor:pointer;" onclick="sortTable(0)">Name <span id="sort-0">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable(1)">PSK <small style="color: #6c757d;">(click to copy)</small> <span id="sort-1">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable(2)">Length <span id="sort-2">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable(3)">Validity <span id="sort-3">⇅</span></th>
+          {% if is_admin %}<th style="cursor:pointer;" onclick="sortTable(4)">User <span id="sort-4">⇅</span></th>{% endif %}
+          <th style="cursor:pointer;" onclick="sortTable({{ 5 if is_admin else 4 }})">Created (local) <span id="sort-{{ 5 if is_admin else 4 }}">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable({{ 6 if is_admin else 5 }})">Expires (local) <span id="sort-{{ 6 if is_admin else 5 }}">⇅</span></th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in preshared_keys %}
+        <tr>
+          <td>
+            <div class="font-weight-bold">{{ entry.name }}</div>
+            {% if entry.note %}
+            <div class="small text-muted">{{ entry.note }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <code
+              id="psk-{{ loop.index }}"
+              title="{{ entry.secret_value }}"
+              data-psk="{{ entry.secret_value }}"
+              style="cursor:pointer;"
+              onclick="copyPsk(this, {{ loop.index }})"
+            >{{ entry.secret_value_short or entry.secret_value }}</code>
+            <span class="ml-1 text-success" id="psk-copied-{{ loop.index }}" style="display:none;">Copied!</span>
+          </td>
+          <td>{{ entry.length }}</td>
+          <td>{{ entry.validity or "-" }}</td>
+          {% if is_admin %}<td>{{ entry.user }}</td>{% endif %}
+          <td>{{ entry.created_at_local or entry.created_at }}</td>
+          <td>{{ entry.expires_at_local or entry.expires_at or "-" }}</td>
+          <td class="text-nowrap">
+            <form method="POST" action="{{ url_for('delete_preshared_key', psk_id=entry.id) }}" style="display:inline;" onsubmit="return confirm('Delete pre-shared key {{ entry.name }}?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <script>
+    let sortDirections = {};
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+
+    function copyGeneratedPsk() {
+      const el = document.getElementById('generated-psk');
+      if (!el || !navigator.clipboard) return;
+      navigator.clipboard.writeText(el.textContent.trim());
+    }
+
+    function copyPsk(el, idx) {
+      var value = el ? (el.getAttribute('data-psk') || '') : '';
+      if (!value || !navigator.clipboard) return;
+      navigator.clipboard.writeText(value).then(function() {
+        var copied = document.getElementById('psk-copied-' + idx);
+        if (copied) {
+          copied.style.display = 'inline';
+          setTimeout(function() { copied.style.display = 'none'; }, 1200);
+        }
+      });
+    }
+
+    function sortTable(columnIndex) {
+      var table = document.getElementById('pskTable');
+      var rows = Array.from(table.getElementsByTagName('tbody')[0].getElementsByTagName('tr'));
+      var isAscending = sortDirections[columnIndex] !== 'asc';
+      sortDirections[columnIndex] = isAscending ? 'asc' : 'desc';
+
+      document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '⇅');
+      document.getElementById('sort-' + columnIndex).textContent = isAscending ? '↑' : '↓';
+
+      rows.sort(function(a, b) {
+        var aText = a.cells[columnIndex].textContent.trim().toLowerCase();
+        var bText = b.cells[columnIndex].textContent.trim().toLowerCase();
+        if (aText < bText) return isAscending ? -1 : 1;
+        if (aText > bText) return isAscending ? 1 : -1;
+        return 0;
+      });
+
+      var tbody = table.getElementsByTagName('tbody')[0];
+      rows.forEach(row => tbody.appendChild(row));
+      allRows = Array.from(tbody.getElementsByTagName('tr'));
+      showPage(1);
+    }
+
+    function filterTable() {
+      var filterValue = document.getElementById('filterInput').value.toLowerCase();
+      var filterInput = document.getElementById('filterInput');
+      if (filterValue) {
+        filterInput.style.backgroundColor = '#fff3cd';
+      } else {
+        filterInput.style.backgroundColor = '';
+      }
+      var table = document.getElementById('pskTable');
+      var tbody = table.getElementsByTagName('tbody')[0];
+      var allDomRows = Array.from(tbody.querySelectorAll('tr'));
+      allRows = allDomRows.filter(function(row) {
+        return row.textContent.toLowerCase().indexOf(filterValue) > -1;
+      });
+      allDomRows.forEach(function(row) { row.style.display = 'none'; });
+      allRows.forEach(function(row) { row.style.display = ''; });
+      showPage(1);
+    }
+
+    function changePageSize() {
+      pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+      showPage(1);
+    }
+
+    function showPage(page) {
+      currentPage = page;
+      var start = (page - 1) * pageSize;
+      var end = start + pageSize;
+      allRows.forEach((row, index) => {
+        row.style.display = index >= start && index < end ? '' : 'none';
+      });
+      updatePaginationInfo();
+    }
+
+    function updatePaginationInfo() {
+      var totalPages = Math.ceil(allRows.length / pageSize) || 1;
+      var start = allRows.length ? ((currentPage - 1) * pageSize + 1) : 0;
+      var end = Math.min(currentPage * pageSize, allRows.length);
+      document.getElementById('pageInfo').textContent = `Showing ${start}-${end} of ${allRows.length}`;
+      document.getElementById('prevBtn').disabled = currentPage === 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+
+    function nextPage() {
+      var totalPages = Math.ceil(allRows.length / pageSize);
+      if (currentPage < totalPages) {
+        showPage(currentPage + 1);
+      }
+    }
+
+    function previousPage() {
+      if (currentPage > 1) {
+        showPage(currentPage - 1);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      var table = document.getElementById('pskTable');
+      var tbody = table.getElementsByTagName('tbody')[0];
+      allRows = Array.from(tbody.getElementsByTagName('tr'));
+      showPage(1);
+    });
+    </script>
+  {% else %}
+    <div class="text-muted">No pre-shared keys found.</div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

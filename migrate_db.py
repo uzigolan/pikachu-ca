@@ -43,7 +43,21 @@ def migrate_db():
         last_used_at DATETIME,
         revoked INTEGER DEFAULT 0
     )''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS preshared_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        secret_value TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,
+        last_used_at DATETIME,
+        revoked INTEGER DEFAULT 0,
+        validity TEXT,
+        purpose TEXT,
+        note TEXT
+    )''')
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_preshared_keys_user_name ON preshared_keys(user_id, name)")
     # Ensure validity column exists if table already created
     def column_exists(table, column):
         cur.execute(f"PRAGMA table_info({table})")
@@ -192,6 +206,16 @@ def migrate_db():
     ensure_column('api_tokens', 'expires_at', 'DATETIME')
     ensure_column('api_tokens', 'last_used_at', 'DATETIME')
     ensure_column('api_tokens', 'revoked', 'INTEGER DEFAULT 0')
+    ensure_column('preshared_keys', 'name', 'TEXT')
+    ensure_column('preshared_keys', 'secret_value', 'TEXT')
+    ensure_column('preshared_keys', 'user_id', 'INTEGER')
+    ensure_column('preshared_keys', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP')
+    ensure_column('preshared_keys', 'expires_at', 'DATETIME')
+    ensure_column('preshared_keys', 'last_used_at', 'DATETIME')
+    ensure_column('preshared_keys', 'revoked', 'INTEGER DEFAULT 0')
+    ensure_column('preshared_keys', 'validity', 'TEXT')
+    ensure_column('preshared_keys', 'purpose', 'TEXT')
+    ensure_column('preshared_keys', 'note', 'TEXT')
 
     # Ensure unique usernames via index; warn if duplicates prevent creation
     def ensure_unique_usernames(cursor):

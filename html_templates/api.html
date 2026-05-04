@@ -21,38 +21,38 @@
     <tbody>
       <!-- CA General -->
       <tr>
-        <td rowspan="7">CA General<br><small class="text-muted">Community + Enterprise</small></td>
+        <td rowspan="9">CA General<br><small class="text-muted">Community + Enterprise</small></td>
         <td>Download CA Chain</td>
         <td>
-          <pre>curl -k https://pkisquire-ca.iot-rad.com/downloads/chain</pre>
+          <pre>curl -k https://{{ server_dns_name }}/downloads/chain</pre>
         </td>
         <td>Returns full CA chain file</td>
       </tr>
       <tr>
         <td>Download CRL</td>
         <td>
-          <pre>curl -k https://pkisquire-ca.iot-rad.com/downloads/crl</pre>
+          <pre>curl -k https://{{ server_dns_name }}/downloads/crl</pre>
         </td>
         <td>Generates and downloads latest Certificate Revocation List</td>
       </tr>
       <tr>
         <td>Certificate Status</td>
         <td>
-          <pre>curl -k https://pkisquire-ca.iot-rad.com/status/0xc75f573d9cb2b581</pre>
+          <pre>curl -k https://{{ server_dns_name }}/status/0xc75f573d9cb2b581</pre>
         </td>
         <td>Returns status as valid, revoked, or not found in JSON</td>
       </tr>
       <tr>
         <td>Expired Certificates</td>
         <td>
-          <pre>curl -k https://pkisquire-ca.iot-rad.com/expired</pre>
+          <pre>curl -k https://{{ server_dns_name }}/expired</pre>
         </td>
         <td>Returns list of certificate IDs that are expired</td>
       </tr>
       <tr>
         <td>Download CSR</td>
         <td>
-          <pre>curl -k https://pkisquire-ca.iot-rad.com/requests/1/download</pre>
+          <pre>curl -k https://{{ server_dns_name }}/requests/1/download</pre>
         </td>
         <td>Serves saved CSR if available</td>
       </tr>
@@ -61,10 +61,10 @@
         <td>
           <pre>curl -k \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
-  https://pkisquire-ca.iot-rad.com/api/keys/my-key/private</pre>
+  https://{{ server_dns_name }}/api/keys/my-key/private</pre>
           <pre>curl --cert client.crt --key client.key \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
-  https://pkisquire-ca.iot-rad.com:4443/api/keys/my-key/private</pre>
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/keys/my-key/private</pre>
         </td>
         <td>Enterprise only. Returns private key PEM for the named key. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own keys only; admin token may access any key.</td>
       </tr>
@@ -73,22 +73,44 @@
         <td>
           <pre>curl -k \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
-  https://pkisquire-ca.iot-rad.com/api/keys/my-key/public</pre>
+  https://{{ server_dns_name }}/api/keys/my-key/public</pre>
           <pre>curl --cert client.crt --key client.key \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
-  https://pkisquire-ca.iot-rad.com:4443/api/keys/my-key/public</pre>
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/keys/my-key/public</pre>
         </td>
         <td>Enterprise only. Returns public key PEM for the named key. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own keys only; admin token may access any key.</td>
       </tr>
-
+      <tr>
+        <td>Create Pre-Shared Key</td>
+        <td>
+          <pre>curl -k -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"device-001","purpose":"mqtt-bootstrap","validity":"30d","length":48}' \
+  https://{{ server_dns_name }}/api/preshared_keys</pre>
+        </td>
+        <td>Enterprise only. Creates a named PSK for the token owner and returns the secret once. Optional fields: purpose, validity, length.</td>
+      </tr>
+      <tr>
+        <td>Get Pre-Shared Key by Name</td>
+        <td>
+          <pre>curl -k \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}/api/preshared_keys/device-001</pre>
+          <pre>curl --cert client.crt --key client.key \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
+        </td>
+        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+      </tr>
 
       <!-- SCEP -->
       <tr>
         <td rowspan="4">SCEP<br><small class="text-muted">Enterprise only</small></td>
         <td>SCEP GetCaps</td>
         <td>
-          <pre>sscep getcaps -u http://localhost:8090/scep</pre>
-          <pre>curl http://localhost:8090/scep?operation=GetCACaps</pre>
+          <pre>sscep getcaps -u http://{{ server_dns_name }}:{{ scep_http_port }}/scep</pre>
+          <pre>curl http://{{ server_dns_name }}:{{ scep_http_port }}/scep?operation=GetCACaps</pre>
         </td>
         <td>Query server capabilities (AES, DES3, POSTPKIOperation, SHA-256, etc.)</td>
       </tr>
@@ -96,7 +118,7 @@
         <td>SCEP GetCA</td>
         <td>
           <pre>sscep getca \
-  -u http://localhost:8090/scep \
+  -u http://{{ server_dns_name }}:{{ scep_http_port }}/scep \
   -c ca.crt</pre>
         </td>
         <td>Download CA certificate (prerequisite: RSA-based SubCA)</td>
@@ -105,7 +127,7 @@
         <td>SCEP Enrollment</td>
         <td>
           <pre>sscep enroll \
-  -u http://localhost:8090/scep \
+  -u http://{{ server_dns_name }}:{{ scep_http_port }}/scep \
   -k client.key \
   -r client.csr \
   -c ca.crt \
@@ -120,7 +142,7 @@
         <td>
           <pre>curl -X POST \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
-  http://localhost:80/api/challenge_passwords</pre>
+  http://{{ server_dns_name }}:{{ http_port }}/api/challenge_passwords</pre>
         </td>
         <td>Generates a challenge password tied to the token's user. Response: value, expires_at, validity, user_id.</td>
       </tr>
@@ -132,11 +154,11 @@
         <td>
           <pre>curl -k -X POST \
   --data-binary @etx.csr.der \
-  https://pkisquire-ca.iot-rad.com/.well-known/est/simpleenroll \
+  https://{{ server_dns_name }}/.well-known/est/simpleenroll \
   -H "Content-Type: application/pkcs10" \
   --output etx.crt.p7</pre>
     <pre>estclient enroll \
-  -server pkisquire-ca.iot-rad.com \
+  -server {{ server_dns_name }} \
   -insecure \
   -csr etx.csr \
   -out etx.crt</pre>
@@ -149,11 +171,11 @@
           <pre>curl --cert https.crt --key https.key \
   -X POST \
   --data-binary @etx.csr.der \
-  https://pkisquire-ca.iot-rad.com:4443/.well-known/est/simpleenroll \
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/.well-known/est/simpleenroll \
   -H "Content-Type: application/pkcs10" \
   --output etx.crt.p7</pre>
     <pre>estclient enroll \
-  -server pkisquire-ca.iot-rad.com:4443 \
+  -server {{ server_dns_name }}:{{ trusted_https_port }} \
   -cert https.crt \
   -key https.key \
   -csr etx.csr \
@@ -165,10 +187,10 @@
         <td>EST CA Certs</td>
         <td>
           <pre>curl -k \
-  https://pkisquire-ca.iot-rad.com/.well-known/est/cacerts \
+  https://{{ server_dns_name }}/.well-known/est/cacerts \
   --output chain.crt</pre>
 <pre>estclient cacerts \
-  -server pkisquire-ca.iot-rad.com \
+  -server {{ server_dns_name }} \
   -insecure \
   -out ca.pem</pre>
         </td>
@@ -178,10 +200,10 @@
         <td>EST CA Certs (mTLS)</td>
         <td>
           <pre>curl --cert https.crt --key https.key \
-  https://pkisquire-ca.iot-rad.com:4443/.well-known/est/cacerts \
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/.well-known/est/cacerts \
   --output chain.crt</pre>
 <pre>estclient cacerts \
-  -server pkisquire-ca.iot-rad.com:4443 \
+  -server {{ server_dns_name }}:{{ trusted_https_port }} \
   -cert https.crt \
   -key https.key \
   -out ca.pem</pre>
@@ -198,7 +220,7 @@
   -reqout ocsp_request.der \
   -issuer rad_ca_sub.crt \
   -cert valid.crt \
-  -url http://pkisquire-ca.iot-rad.com/ocsp \
+  -url http://{{ server_dns_name }}/ocsp \
   -resp_text \
   -respout ocsp_response.der</pre>
         </td>

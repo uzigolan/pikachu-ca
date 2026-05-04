@@ -195,7 +195,13 @@ product_name = product_name.replace("\\n", "\n")
 if not product_name.strip():
     product_name = "PKISquire CA"
 app.config["PRODUCT_NAME"] = product_name
+server_dns_name = _cfg.get("DEFAULT", "server_dns_name", fallback="pkisquire-ca.iot-rad.com").strip()
+if not server_dns_name:
+    server_dns_name = "pkisquire-ca.iot-rad.com"
+app.config["SERVER_DNS_NAME"] = server_dns_name
 init_users_config(app, _cfg)
+app.config["PRESHARED_KEY_DEFAULT_VALIDITY"] = _cfg.get("DEFAULT", "preshared_key_default_validity", fallback="60d")
+app.config["PRESHARED_KEY_LENGTH"] = _cfg.getint("DEFAULT", "preshared_key_length", fallback=48)
 
 ca_mode = _cfg.get("CA", "mode", fallback="EC").upper()
 if ca_mode not in ("EC", "RSA"):
@@ -613,7 +619,14 @@ def inject_legacy_paths_flag():
 
 @app.context_processor
 def inject_product_name():
-    return {"product_name": app.config.get("PRODUCT_NAME", "PKISquire CA")}
+    return {
+        "product_name": app.config.get("PRODUCT_NAME", "PKISquire CA"),
+        "server_dns_name": app.config.get("SERVER_DNS_NAME", "pkisquire-ca.iot-rad.com"),
+        "http_port": HTTP_DEFAULT_PORT,
+        "https_port": HTTPS_PORT,
+        "trusted_https_port": TRUSTED_HTTPS_PORT,
+        "scep_http_port": HTTP_SCEP_PORT,
+    }
 
 
 @app.before_request
@@ -627,15 +640,18 @@ def enforce_enterprise_feature_gates():
         "/scep",
         "/mobileconfig",
         "/challenge_passwords",
+        "/preshared_keys",
         "/delete_challenge_password",
         "/delete_all_expired_challenge_passwords",
         "/api/challenge_passwords",
+        "/api/preshared_keys",
         "/ocsp",
         "/ocspv",
         "/users/tokens",
     )
     blocked_exact = (
         "/challenge_passwords/data",
+        "/preshared_keys/state",
     )
     if path in blocked_exact or any(path.startswith(prefix) for prefix in blocked_prefixes):
         abort(404)
@@ -760,6 +776,40 @@ def api_create_challenge_password():
 @login_required
 def challenge_passwords():
     return _enterprise_routes_module().challenge_passwords()
+
+
+@app.route("/preshared_keys", methods=["GET", "POST"])
+@login_required
+def preshared_keys():
+    return _enterprise_routes_module().preshared_keys()
+
+
+@app.route("/preshared_keys/state", methods=["GET"])
+@login_required
+def preshared_keys_state():
+    return _enterprise_routes_module().preshared_keys_state()
+
+
+@app.route("/preshared_keys/<int:psk_id>/delete", methods=["POST"])
+@login_required
+def delete_preshared_key(psk_id):
+    return _enterprise_routes_module().delete_preshared_key(psk_id)
+
+
+@app.route("/preshared_keys/<int:psk_id>/revoke", methods=["POST"])
+@login_required
+def revoke_preshared_key(psk_id):
+    return _enterprise_routes_module().revoke_preshared_key(psk_id)
+
+
+@app.route("/api/preshared_keys", methods=["POST"])
+def api_create_preshared_key():
+    return _enterprise_routes_module().api_create_preshared_key(verify_api_token)
+
+
+@app.route("/api/preshared_keys/<path:key_name>", methods=["GET"])
+def api_get_preshared_key(key_name):
+    return _enterprise_routes_module().api_get_preshared_key(key_name, verify_api_token)
 
 
 
@@ -1915,7 +1965,14 @@ def ra_policies_page():
         policies = mgr.list_policies_for_user(current_user.id, include_system=True)
     from flask import current_app
     challenge_password_enabled = feature_enabled("challenge_passwords") and current_app.config.get("SCEP_CHALLENGE_PASSWORD_ENABLED", False)
-    return render_template("ra_policies.html", policies=policies, is_admin=current_user.is_admin(), challenge_password_enabled=challenge_password_enabled)
+    preshared_keys_enabled = feature_enabled("preshared_keys")
+    return render_template(
+        "ra_policies.html",
+        policies=policies,
+        is_admin=current_user.is_admin(),
+        challenge_password_enabled=challenge_password_enabled,
+        preshared_keys_enabled=preshared_keys_enabled,
+    )
 
 
 @app.route("/ra_policies/state")

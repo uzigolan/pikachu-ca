@@ -24,6 +24,15 @@ from cryptography.x509.oid import ExtensionOID
 from flask import Response, current_app, jsonify, make_response, redirect, render_template, request, session, url_for, flash
 from flask_login import current_user
 
+from enterprise.preshared_keys import (
+    api_create_preshared_key,
+    api_get_preshared_key,
+    delete_preshared_key,
+    preshared_keys,
+    preshared_keys_state,
+    revoke_preshared_key,
+)
+
 
 def delete_challenge_password():
     value = request.form.get("value") or request.args.get("value")
@@ -212,7 +221,7 @@ def api_create_challenge_password(verify_api_token):
 
     validity_str = current_app.config.get("SCEP_CHALLENGE_PASSWORD_VALIDITY", "60m").strip()
     delta, validity_str = _parse_validity_timedelta(validity_str)
-    now = datetime.now(datetime.UTC)
+    now = datetime.now(timezone.utc)
     value = secrets.token_bytes(16).hex().upper()
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.execute(
@@ -261,7 +270,7 @@ def challenge_passwords():
     else:
         delta = timedelta(minutes=60)
     if request.method == "POST":
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         value = secrets.token_bytes(16).hex().upper()
         with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
             conn.execute(
