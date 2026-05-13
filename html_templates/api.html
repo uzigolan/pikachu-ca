@@ -21,7 +21,7 @@
     <tbody>
       <!-- CA General -->
       <tr>
-        <td rowspan="9">CA General<br><small class="text-muted">Community + Enterprise</small></td>
+        <td rowspan="7">CA General<br><small class="text-muted">Community + Enterprise</small></td>
         <td>Download CA Chain</td>
         <td>
           <pre>curl -k https://{{ server_dns_name }}/downloads/chain</pre>
@@ -81,15 +81,16 @@
         <td>Enterprise only. Returns public key PEM for the named key. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own keys only; admin token may access any key.</td>
       </tr>
       <tr>
+        <td rowspan="4">Pre-Shared Key<br><small class="text-muted">Enterprise only</small></td>
         <td>Create Pre-Shared Key</td>
         <td>
           <pre>curl -k -X POST \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
   -H "Content-Type: application/json" \
-  -d '{"name":"device-001","purpose":"mqtt-bootstrap","validity":"30d","length":48}' \
+  -d '{"name":"device-001","purpose":"mqtt-bootstrap","validity":"30d","length":48,"rotation_interval":"2m"}' \
   https://{{ server_dns_name }}/api/preshared_keys</pre>
         </td>
-        <td>Enterprise only. Creates a named PSK for the token owner and returns the secret once. Optional fields: purpose, validity, length.</td>
+        <td>Enterprise only. Creates a named PSK for the token owner and returns the secret once. Optional fields: purpose, validity, length, rotation_interval.</td>
       </tr>
       <tr>
         <td>Get Pre-Shared Key by Name</td>
@@ -99,9 +100,33 @@
   https://{{ server_dns_name }}/api/preshared_keys/device-001</pre>
           <pre>curl --cert client.crt --key client.key \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
-  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
+          https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
         </td>
         <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+      </tr>
+      <tr>
+        <td>Rotate Pre-Shared Key by Name</td>
+        <td>
+          <pre>curl -k -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}/api/preshared_keys/device-001/rotation/start</pre>
+          <pre>curl --cert client.crt --key client.key -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001/rotation/start</pre>
+        </td>
+        <td>Enterprise only. Rotates the PSK value immediately and switches it into rotating mode. Returns JSON including the new value, rotation_mode, rotation_interval, last_rotated_at, and next_rotation_at. Requires API token. Admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+      </tr>
+      <tr>
+        <td>Stop Rotating Pre-Shared Key by Name</td>
+        <td>
+          <pre>curl -k -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}/api/preshared_keys/device-001/rotation/stop</pre>
+          <pre>curl --cert client.crt --key client.key -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001/rotation/stop</pre>
+        </td>
+        <td>Enterprise only. Stops rotating mode for the named PSK and clears the next scheduled rotation. Returns JSON including rotation_mode, rotation_interval, last_rotated_at, and next_rotation_at. Requires API token. Admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
       </tr>
 
       <!-- SCEP -->

@@ -202,6 +202,9 @@ app.config["SERVER_DNS_NAME"] = server_dns_name
 init_users_config(app, _cfg)
 app.config["PRESHARED_KEY_DEFAULT_VALIDITY"] = _cfg.get("DEFAULT", "preshared_key_default_validity", fallback="60d")
 app.config["PRESHARED_KEY_LENGTH"] = _cfg.getint("DEFAULT", "preshared_key_length", fallback=48)
+app.config["PRESHARED_KEY_DEFAULT_ROTATION_INTERVAL"] = _cfg.get(
+    "DEFAULT", "preshared_key_default_rotation_interval", fallback="2m"
+)
 
 ca_mode = _cfg.get("CA", "mode", fallback="EC").upper()
 if ca_mode not in ("EC", "RSA"):
@@ -790,6 +793,12 @@ def preshared_keys_state():
     return _enterprise_routes_module().preshared_keys_state()
 
 
+@app.route("/preshared_keys/data", methods=["GET"])
+@login_required
+def preshared_keys_data():
+    return _enterprise_routes_module().preshared_keys_data()
+
+
 @app.route("/preshared_keys/<int:psk_id>/delete", methods=["POST"])
 @login_required
 def delete_preshared_key(psk_id):
@@ -802,6 +811,18 @@ def revoke_preshared_key(psk_id):
     return _enterprise_routes_module().revoke_preshared_key(psk_id)
 
 
+@app.route("/preshared_keys/<int:psk_id>/regenerate", methods=["POST"])
+@login_required
+def regenerate_preshared_key(psk_id):
+    return _enterprise_routes_module().regenerate_preshared_key(psk_id)
+
+
+@app.route("/preshared_keys/<int:psk_id>/toggle_rotation", methods=["POST"])
+@login_required
+def toggle_preshared_key_rotation(psk_id):
+    return _enterprise_routes_module().toggle_preshared_key_rotation(psk_id)
+
+
 @app.route("/api/preshared_keys", methods=["POST"])
 def api_create_preshared_key():
     return _enterprise_routes_module().api_create_preshared_key(verify_api_token)
@@ -810,6 +831,16 @@ def api_create_preshared_key():
 @app.route("/api/preshared_keys/<path:key_name>", methods=["GET"])
 def api_get_preshared_key(key_name):
     return _enterprise_routes_module().api_get_preshared_key(key_name, verify_api_token)
+
+
+@app.route("/api/preshared_keys/<path:key_name>/rotation/start", methods=["POST"])
+def api_start_preshared_key_rotation(key_name):
+    return _enterprise_routes_module().api_start_preshared_key_rotation(key_name, verify_api_token)
+
+
+@app.route("/api/preshared_keys/<path:key_name>/rotation/stop", methods=["POST"])
+def api_stop_preshared_key_rotation(key_name):
+    return _enterprise_routes_module().api_stop_preshared_key_rotation(key_name, verify_api_token)
 
 
 

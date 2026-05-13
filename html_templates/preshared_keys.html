@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid px-4 mt-4">
   <h2>Pre-Shared Keys</h2>
   <form method="POST" class="mb-4">
     <div class="form-row">
@@ -17,10 +17,14 @@
         <input id="validity" name="validity" type="text" class="form-control" value="{{ default_validity }}">
       </div>
       <div class="form-group col-md-2">
+        <label for="rotation_interval">Rotation every</label>
+        <input id="rotation_interval" name="rotation_interval" type="text" class="form-control" value="{{ default_rotation_interval }}" placeholder="2m">
+      </div>
+      <div class="form-group col-md-1">
         <label for="purpose">Purpose</label>
         <input id="purpose" name="purpose" type="text" class="form-control" placeholder="mqtt">
       </div>
-      <div class="form-group col-md-3">
+      <div class="form-group col-md-2">
         <label for="note">Note</label>
         <input id="note" name="note" type="text" class="form-control" placeholder="Optional note">
       </div>
@@ -37,7 +41,8 @@
       <small>
         Name: <b>{{ generated.name }}</b>
         {% if generated.purpose %}| Purpose: <b>{{ generated.purpose }}</b>{% endif %}
-        | Expires: <b>{{ generated.expires_at or "never" }}</b>
+        | Mode: <b>{{ generated.rotation_mode|capitalize }}</b>
+        | Rotation every: <b>{{ generated.rotation_interval or "-" }}</b>
       </small>
     </div>
   {% endif %}
@@ -54,29 +59,31 @@
         <span id="pageInfo" class="mr-3"></span>
       </div>
       <div>
-        <button class="btn btn-sm btn-secondary" onclick="previousPage()" id="prevBtn">← Previous</button>
-        <button class="btn btn-sm btn-secondary" onclick="nextPage()" id="nextBtn">Next →</button>
+        <button class="btn btn-sm btn-secondary" onclick="previousPage()" id="prevBtn">Previous</button>
+        <button class="btn btn-sm btn-secondary" onclick="nextPage()" id="nextBtn">Next</button>
       </div>
     </div>
     <div class="form-group">
-      <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by key, name, purpose, user, or date">
+      <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by key, name, purpose, mode, user, or date">
     </div>
-    <table id="pskTable" class="table table-bordered table-sm">
+    <table id="pskTable" class="table table-bordered table-sm w-100">
       <thead>
         <tr>
-          <th style="cursor:pointer;" onclick="sortTable(0)">Name <span id="sort-0">⇅</span></th>
-          <th style="cursor:pointer;" onclick="sortTable(1)">PSK <small style="color: #6c757d;">(click to copy)</small> <span id="sort-1">⇅</span></th>
-          <th style="cursor:pointer;" onclick="sortTable(2)">Length <span id="sort-2">⇅</span></th>
-          <th style="cursor:pointer;" onclick="sortTable(3)">Validity <span id="sort-3">⇅</span></th>
-          {% if is_admin %}<th style="cursor:pointer;" onclick="sortTable(4)">User <span id="sort-4">⇅</span></th>{% endif %}
-          <th style="cursor:pointer;" onclick="sortTable({{ 5 if is_admin else 4 }})">Created (local) <span id="sort-{{ 5 if is_admin else 4 }}">⇅</span></th>
-          <th style="cursor:pointer;" onclick="sortTable({{ 6 if is_admin else 5 }})">Expires (local) <span id="sort-{{ 6 if is_admin else 5 }}">⇅</span></th>
+          <th style="cursor:pointer;" onclick="sortTable(0)">Name <span id="sort-0"></span></th>
+          <th style="cursor:pointer;" onclick="sortTable(1)">PSK <small style="color: #6c757d;">(click to copy)</small> <span id="sort-1"></span></th>
+          <th style="cursor:pointer;" onclick="sortTable(2)">Length <span id="sort-2"></span></th>
+          <th style="cursor:pointer;" onclick="sortTable(3)">Validity <span id="sort-3"></span></th>
+          <th style="cursor:pointer;" onclick="sortTable(4)">Mode <span id="sort-4"></span></th>
+          <th style="cursor:pointer;" onclick="sortTable(5)">Rotation every <span id="sort-5"></span></th>
+          <th style="cursor:pointer;" onclick="sortTable(6)">Time to rotate <span id="sort-6"></span></th>
+          {% if is_admin %}<th style="cursor:pointer;" onclick="sortTable(7)">User <span id="sort-7"></span></th>{% endif %}
+          <th style="cursor:pointer;" onclick="sortTable({{ 8 if is_admin else 7 }})">Created (local) <span id="sort-{{ 8 if is_admin else 7 }}"></span></th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for entry in preshared_keys %}
-        <tr>
+        <tr data-psk-id="{{ entry.id }}">
           <td>
             <div class="font-weight-bold">{{ entry.name }}</div>
             {% if entry.note %}
@@ -95,10 +102,39 @@
           </td>
           <td>{{ entry.length }}</td>
           <td>{{ entry.validity or "-" }}</td>
+          <td>
+            <span class="badge {% if entry.rotation_mode == 'rotating' %}badge-info{% else %}badge-secondary{% endif %}">
+              {{ entry.rotation_label }}
+            </span>
+          </td>
+          <td>{{ entry.rotation_interval or "" }}</td>
+          <td>
+            {% if entry.rotation_remaining_seconds is not none and entry.rotation_interval %}
+            <span
+              class="js-rotation-countdown"
+              data-remaining-seconds="{{ entry.rotation_remaining_seconds }}"
+              data-rotation-interval="{{ entry.rotation_interval }}"
+            >{{ entry.rotation_remaining or "" }}</span>
+            {% endif %}
+          </td>
           {% if is_admin %}<td>{{ entry.user }}</td>{% endif %}
           <td>{{ entry.created_at_local or entry.created_at }}</td>
-          <td>{{ entry.expires_at_local or entry.expires_at or "-" }}</td>
           <td class="text-nowrap">
+            <form
+              method="POST"
+              action="{% if entry.rotation_mode == 'rotating' %}{{ url_for('toggle_preshared_key_rotation', psk_id=entry.id) }}{% else %}{{ url_for('regenerate_preshared_key', psk_id=entry.id) }}{% endif %}"
+              style="display:inline;"
+              class="js-rotation-form"
+              onsubmit="return confirm('{% if entry.rotation_mode == 'rotating' %}Stop rotating pre-shared key {{ entry.name }}?{% else %}Rotate pre-shared key {{ entry.name }} and start rotating mode?{% endif %}');"
+            >
+              <button
+                type="submit"
+                class="btn btn-sm {% if entry.rotation_mode == 'rotating' %}btn-outline-warning{% else %}btn-outline-primary{% endif %}"
+                data-busy-text="{% if entry.rotation_mode == 'rotating' %}Stopping...{% else %}Rotating...{% endif %}"
+              >
+                {% if entry.rotation_mode == 'rotating' %}Stop Rotate{% else %}Rotate{% endif %}
+              </button>
+            </form>
             <form method="POST" action="{{ url_for('delete_preshared_key', psk_id=entry.id) }}" style="display:inline;" onsubmit="return confirm('Delete pre-shared key {{ entry.name }}?');">
               <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
             </form>
@@ -112,6 +148,115 @@
     let currentPage = 1;
     let pageSize = 10;
     let allRows = [];
+    let rotationRefreshInFlight = false;
+    const rotateBaseUrlTemplate = "{{ url_for('regenerate_preshared_key', psk_id=0) }}";
+    const stopRotateBaseUrlTemplate = "{{ url_for('toggle_preshared_key_rotation', psk_id=0) }}";
+    const deleteBaseUrlTemplate = "{{ url_for('delete_preshared_key', psk_id=0) }}";
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderRotationCountdown(entry) {
+      if (entry.rotation_remaining_seconds === null || !entry.rotation_interval) {
+        return '';
+      }
+      return `<span class="js-rotation-countdown" data-remaining-seconds="${entry.rotation_remaining_seconds}" data-rotation-interval="${escapeHtml(entry.rotation_interval)}">${escapeHtml(entry.rotation_remaining || '')}</span>`;
+    }
+
+    function escapeJsSingleQuoted(value) {
+      return String(value || '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+    }
+
+    function pskActionUrl(baseUrlTemplate, pskId) {
+      return baseUrlTemplate.replace('/0/', `/${pskId}/`);
+    }
+
+    function renderPskRow(entry, index) {
+      const userCell = {{ 'true' if is_admin else 'false' }}
+        ? `<td>${escapeHtml(entry.user || '')}</td>`
+        : '';
+      const modeBadgeClass = entry.rotation_mode === 'rotating' ? 'badge-info' : 'badge-secondary';
+      const actionUrl = entry.rotation_mode === 'rotating'
+        ? pskActionUrl(stopRotateBaseUrlTemplate, entry.id)
+        : pskActionUrl(rotateBaseUrlTemplate, entry.id);
+      const deleteUrl = pskActionUrl(deleteBaseUrlTemplate, entry.id);
+      const confirmText = entry.rotation_mode === 'rotating'
+        ? `Stop rotating pre-shared key ${entry.name}?`
+        : `Rotate pre-shared key ${entry.name} and start rotating mode?`;
+      const actionBtnClass = entry.rotation_mode === 'rotating' ? 'btn-outline-warning' : 'btn-outline-primary';
+      const actionBusyText = entry.rotation_mode === 'rotating' ? 'Stopping...' : 'Rotating...';
+      const actionLabel = entry.rotation_mode === 'rotating' ? 'Stop Rotate' : 'Rotate';
+      return `
+        <tr data-psk-id="${entry.id}">
+          <td>
+            <div class="font-weight-bold">${escapeHtml(entry.name)}</div>
+            ${entry.note ? `<div class="small text-muted">${escapeHtml(entry.note)}</div>` : ''}
+          </td>
+          <td>
+            <code
+              id="psk-${index}"
+              title="${escapeHtml(entry.secret_value)}"
+              data-psk="${escapeHtml(entry.secret_value)}"
+              style="cursor:pointer;"
+              onclick="copyPsk(this, ${index})"
+            >${escapeHtml(entry.secret_value_short || entry.secret_value || '')}</code>
+            <span class="ml-1 text-success" id="psk-copied-${index}" style="display:none;">Copied!</span>
+          </td>
+          <td>${escapeHtml(entry.length)}</td>
+          <td>${escapeHtml(entry.validity || '-')}</td>
+          <td><span class="badge ${modeBadgeClass}">${escapeHtml(entry.rotation_label || '')}</span></td>
+          <td>${escapeHtml(entry.rotation_interval || '')}</td>
+          <td>${renderRotationCountdown(entry)}</td>
+          ${userCell}
+          <td>${escapeHtml(entry.created_at_local || entry.created_at || '')}</td>
+          <td class="text-nowrap">
+            <form
+              method="POST"
+              action="${actionUrl}"
+              style="display:inline;"
+              class="js-rotation-form"
+              onsubmit="return confirm('${escapeJsSingleQuoted(confirmText)}');"
+            >
+              <button type="submit" class="btn btn-sm ${actionBtnClass}" data-busy-text="${actionBusyText}">${actionLabel}</button>
+            </form>
+            <form method="POST" action="${deleteUrl}" style="display:inline;" onsubmit="return confirm('Delete pre-shared key ${escapeJsSingleQuoted(entry.name)}?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      `;
+    }
+
+    async function refreshPresharedKeysTable() {
+      if (rotationRefreshInFlight) return;
+      rotationRefreshInFlight = true;
+      try {
+        const response = await fetch('{{ url_for("preshared_keys_data") }}', { credentials: 'same-origin' });
+        if (!response.ok) return;
+        const entries = await response.json();
+        const tbody = document.getElementById('pskTable').getElementsByTagName('tbody')[0];
+        tbody.innerHTML = entries.map((entry, index) => renderPskRow(entry, index + 1)).join('');
+        allRows = Array.from(tbody.getElementsByTagName('tr'));
+        bindBusyButtons();
+        updateRotationCountdowns();
+        if (document.getElementById('filterInput').value) {
+          filterTable();
+        } else {
+          showPage(currentPage);
+        }
+      } catch (error) {
+      } finally {
+        rotationRefreshInFlight = false;
+      }
+    }
 
     function copyGeneratedPsk() {
       const el = document.getElementById('generated-psk');
@@ -137,8 +282,8 @@
       var isAscending = sortDirections[columnIndex] !== 'asc';
       sortDirections[columnIndex] = isAscending ? 'asc' : 'desc';
 
-      document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '⇅');
-      document.getElementById('sort-' + columnIndex).textContent = isAscending ? '↑' : '↓';
+      document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '');
+      document.getElementById('sort-' + columnIndex).textContent = isAscending ? '^' : 'v';
 
       rows.sort(function(a, b) {
         var aText = a.cells[columnIndex].textContent.trim().toLowerCase();
@@ -197,6 +342,49 @@
       document.getElementById('nextBtn').disabled = currentPage >= totalPages;
     }
 
+    function bindBusyButtons() {
+      document.querySelectorAll('.js-rotation-form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+          var button = form.querySelector('button[type="submit"]');
+          if (!button) return;
+          button.disabled = true;
+          var busyText = button.getAttribute('data-busy-text') || 'Working...';
+          button.innerHTML = '<span class="spinner-border spinner-border-sm mr-1" role="status" aria-hidden="true"></span>' + busyText;
+        });
+      });
+    }
+
+    function formatRotationRemaining(totalSeconds, rotationInterval) {
+      if (!rotationInterval) return '';
+      var match = rotationInterval.trim().toLowerCase().match(/^(\d+)([smhd])$/);
+      if (!match) return '';
+      var unit = match[2];
+      var unitSeconds = { s: 1, m: 60, h: 3600, d: 86400 }[unit];
+      var remainingUnits = Math.max(0, Math.ceil(totalSeconds / unitSeconds));
+      return String(remainingUnits) + unit;
+    }
+
+    function updateRotationCountdowns() {
+      let refreshNeeded = false;
+      document.querySelectorAll('.js-rotation-countdown').forEach(function(el) {
+        var remainingSeconds = parseInt(el.getAttribute('data-remaining-seconds') || '', 10);
+        var rotationInterval = el.getAttribute('data-rotation-interval') || '';
+        if (Number.isNaN(remainingSeconds)) {
+          el.textContent = '';
+          return;
+        }
+        el.textContent = formatRotationRemaining(remainingSeconds, rotationInterval);
+        if (remainingSeconds > 0) {
+          el.setAttribute('data-remaining-seconds', String(remainingSeconds - 1));
+        } else {
+          refreshNeeded = true;
+        }
+      });
+      if (refreshNeeded) {
+        refreshPresharedKeysTable();
+      }
+    }
+
     function nextPage() {
       var totalPages = Math.ceil(allRows.length / pageSize);
       if (currentPage < totalPages) {
@@ -214,12 +402,14 @@
       var table = document.getElementById('pskTable');
       var tbody = table.getElementsByTagName('tbody')[0];
       allRows = Array.from(tbody.getElementsByTagName('tr'));
+      bindBusyButtons();
+      updateRotationCountdowns();
+      window.setInterval(updateRotationCountdowns, 1000);
       showPage(1);
     });
     </script>
   {% else %}
     <div class="text-muted">No pre-shared keys found.</div>
   {% endif %}
-  </div>
 </div>
 {% endblock %}

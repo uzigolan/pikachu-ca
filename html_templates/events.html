@@ -68,6 +68,10 @@
           <span class="badge badge-warning">Revoke</span>
         {% elif event[1] == 'update' %}
           <span class="badge badge-info">Update</span>
+        {% elif event[1] == 'rotating_mode' %}
+          <span class="badge badge-primary">Rotated</span>
+        {% elif event[1] == 'stop_rotating_mode' %}
+          <span class="badge badge-secondary">Stop rotated</span>
         {% else %}
           <span class="badge badge-secondary">{{ event[1] }}</span>
         {% endif %}
@@ -230,6 +234,8 @@ window.addEventListener('DOMContentLoaded', initPagination);
       <div><span class="badge badge-danger">Delete</span> Delete</div>
       <div><span class="badge badge-warning">Revoke</span> Revoke</div>
       <div><span class="badge badge-info">Update</span> Update</div>
+      <div><span class="badge badge-primary">Rotated</span> PSK started rotating</div>
+      <div><span class="badge badge-secondary">Stop rotated</span> PSK stopped rotating</div>
     </div>
     <div>
       <div style="font-weight: 600;">Resource Types</div>

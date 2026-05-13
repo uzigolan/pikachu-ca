@@ -54,7 +54,11 @@ def migrate_db():
         revoked INTEGER DEFAULT 0,
         validity TEXT,
         purpose TEXT,
-        note TEXT
+        note TEXT,
+        rotation_mode TEXT DEFAULT 'static',
+        rotation_interval TEXT,
+        last_rotated_at DATETIME,
+        next_rotation_at DATETIME
     )''')
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash)")
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_preshared_keys_user_name ON preshared_keys(user_id, name)")
@@ -216,6 +220,10 @@ def migrate_db():
     ensure_column('preshared_keys', 'validity', 'TEXT')
     ensure_column('preshared_keys', 'purpose', 'TEXT')
     ensure_column('preshared_keys', 'note', 'TEXT')
+    ensure_column('preshared_keys', 'rotation_mode', "TEXT DEFAULT 'static'")
+    ensure_column('preshared_keys', 'rotation_interval', 'TEXT')
+    ensure_column('preshared_keys', 'last_rotated_at', 'DATETIME')
+    ensure_column('preshared_keys', 'next_rotation_at', 'DATETIME')
 
     # Ensure unique usernames via index; warn if duplicates prevent creation
     def ensure_unique_usernames(cursor):
