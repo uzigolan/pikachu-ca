@@ -375,7 +375,7 @@ def _fetch_psk_row_for_owner(conn, psk_id):
     ).fetchone()
 
 
-def _lookup_preshared_key_for_token(key_name, verify_api_token):
+def _lookup_preshared_key_for_token(key_name, verify_api_token, allow_inactive=False):
     raw_token = _extract_api_token()
     if not raw_token:
         return None, (jsonify({"error": "API token required"}), 401)
@@ -432,9 +432,9 @@ def _lookup_preshared_key_for_token(key_name, verify_api_token):
     row = rows[0]
     expires_dt = _parse_dt(row["expires_at"])
     now = datetime.now(timezone.utc)
-    if row["revoked"]:
+    if not allow_inactive and row["revoked"]:
         return None, (jsonify({"error": "Pre-shared key is revoked"}), 410)
-    if expires_dt is not None and expires_dt < now:
+    if not allow_inactive and expires_dt is not None and expires_dt < now:
         return None, (jsonify({"error": "Pre-shared key is expired"}), 410)
 
     return dict(row), token_info
@@ -707,6 +707,24 @@ def api_get_preshared_key(key_name, verify_api_token):
         {"psk_id": row["id"], "via": "api_token"},
     )
     return _api_psk_response(row["secret_value"], row)
+
+
+def api_delete_preshared_key(key_name, verify_api_token):
+    row, token_info_or_response = _lookup_preshared_key_for_token(key_name, verify_api_token, allow_inactive=True)
+    if row is None:
+        return token_info_or_response
+
+    with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
+        conn.execute("DELETE FROM preshared_keys WHERE id = ?", (row["id"],))
+        conn.commit()
+
+    _log_event(
+        "delete",
+        row["name"],
+        token_info_or_response["user_id"],
+        {"psk_id": row["id"], "via": "api_token"},
+    )
+    return jsonify({"deleted": True, "id": row["id"], "name": row["name"], "user_id": row["user_id"]})
 
 
 def api_start_preshared_key_rotation(key_name, verify_api_token):

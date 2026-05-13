@@ -833,6 +833,11 @@ def api_get_preshared_key(key_name):
     return _enterprise_routes_module().api_get_preshared_key(key_name, verify_api_token)
 
 
+@app.route("/api/preshared_keys/<path:key_name>", methods=["DELETE"])
+def api_delete_preshared_key(key_name):
+    return _enterprise_routes_module().api_delete_preshared_key(key_name, verify_api_token)
+
+
 @app.route("/api/preshared_keys/<path:key_name>/rotation/start", methods=["POST"])
 def api_start_preshared_key_rotation(key_name):
     return _enterprise_routes_module().api_start_preshared_key_rotation(key_name, verify_api_token)
