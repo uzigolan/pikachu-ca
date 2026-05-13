@@ -191,6 +191,23 @@ def events_api():
         events_to_render = [list(event) for event in events]
     current_app.logger.debug(f"[AJAX /events/api] events_to_render: {events_to_render}")
     return {'events': events_to_render, 'has_next': has_next}
+
+
+@bp.route('/state', methods=['GET'])
+@login_required
+def events_state():
+    user_role = getattr(g, 'user_role', 'user')
+    user_id = getattr(g, 'user_id', None)
+    db_path = current_app.config['DB_PATH']
+    query = "SELECT COUNT(*) as cnt, IFNULL(MAX(event_id),0) as max_id FROM events WHERE 1=1"
+    params = []
+    if user_role != 'admin':
+        query += " AND user_id = ?"
+        params.append(user_id)
+        query += " AND NOT (resource_type = 'user' AND (event_type = 'create' OR event_type = 'delete'))"
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(query, params).fetchone()
+    return {'count': row[0], 'max_id': row[1]}
 # --- User Events Logic ---
 
 

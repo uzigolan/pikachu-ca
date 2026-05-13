@@ -123,6 +123,7 @@ let pageSize = 10;
 let allRows = [];
 let masterRows = [];
 let sortDirections = {};
+let eventsState = { count: {{ events|length }}, max_id: {{ events[0][0] if events else 0 }} };
 function initPagination() {
   var table = document.querySelector('table.table');
   var tbody = table.getElementsByTagName('tbody')[0];
@@ -222,7 +223,22 @@ function sortTable(columnIndex) {
     showPage(1);
   }
 }
-window.addEventListener('DOMContentLoaded', initPagination);
+async function pollEventsState() {
+  try {
+    const response = await fetch('{{ url_for("events.events_state") }}', { credentials: 'same-origin' });
+    if (!response.ok) return;
+    const state = await response.json();
+    if (state.count !== eventsState.count || state.max_id !== eventsState.max_id) {
+      window.location.reload();
+      return;
+    }
+  } catch (error) {
+  }
+}
+window.addEventListener('DOMContentLoaded', () => {
+  initPagination();
+  window.setInterval(pollEventsState, 5000);
+});
 </script>
 
 <div class="mt-3">
