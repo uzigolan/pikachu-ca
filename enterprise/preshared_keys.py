@@ -703,13 +703,6 @@ def api_get_preshared_key(key_name, verify_api_token):
             (now_str, row["id"]),
         )
         conn.commit()
-
-    _log_event(
-        "read",
-        row["name"],
-        token_info_or_response["user_id"],
-        {"psk_id": row["id"], "via": "api_token"},
-    )
     return _api_psk_response(row["secret_value"], row)
 
 
