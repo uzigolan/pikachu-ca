@@ -95,14 +95,14 @@
       <tr>
         <td>Get Pre-Shared Key by Name</td>
         <td>
-          <pre>curl -k \
+          <pre>curl -k -i \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
   https://{{ server_dns_name }}/api/preshared_keys/device-001</pre>
-          <pre>curl --cert client.crt --key client.key \
+          <pre>curl --cert client.crt --key client.key -i \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
           https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
         </td>
-        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. The response headers include <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
       </tr>
       <tr>
         <td>Delete Pre-Shared Key by Name</td>

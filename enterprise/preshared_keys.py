@@ -121,6 +121,10 @@ def _api_psk_response(secret_value, row):
     response.headers["X-PSK-Id"] = str(row["id"])
     response.headers["X-PSK-Name"] = row["name"]
     response.headers["X-PSK-Length"] = str(len(secret_value or ""))
+    rotation_mode = (row.get("rotation_mode") or "static").strip().lower()
+    next_rotation_dt = _parse_dt(row.get("next_rotation_at"))
+    rotation_remaining_seconds = -1 if rotation_mode != "rotating" else (_rotation_remaining_seconds(next_rotation_dt) or 0)
+    response.headers["X-PSK-Rotation-Remaining-Seconds"] = str(rotation_remaining_seconds)
     if row.get("purpose"):
         response.headers["X-PSK-Purpose"] = row["purpose"]
     if row.get("expires_at"):
