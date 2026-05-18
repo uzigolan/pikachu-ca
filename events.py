@@ -3,10 +3,29 @@ from flask_login import current_user, login_required
 
 from flask import Blueprint, request, render_template, g, current_app, abort
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 bp = Blueprint('events', __name__, url_prefix='/events')
+
+
+def _format_local_timestamp(timestamp):
+    if not timestamp:
+        return ""
+    try:
+        text = str(timestamp).strip()
+        if text.endswith(" UTC"):
+            text = text[:-4] + "+00:00"
+        elif text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        normalized = text
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        text = str(timestamp).replace("T", " ")
+        return text[:16]
 
 # Utility: log an event
 def log_event(event_type, resource_type, resource_name, user_id, details=None):
@@ -144,10 +163,15 @@ def list_events():
         for event in events:
             event = list(event)
             event[4] = user_display(event[4])
+            event[5] = _format_local_timestamp(event[5])
             events_with_usernames.append(tuple(event))
         events_to_render = events_with_usernames
     else:
-        events_to_render = events
+        events_to_render = []
+        for event in events:
+            event = list(event)
+            event[5] = _format_local_timestamp(event[5])
+            events_to_render.append(tuple(event))
     try:
         current_app.logger.trace(f"[TRACE /events] Retrieved {len(events_to_render)} events: {events_to_render}")
     except Exception as e:
@@ -185,10 +209,15 @@ def events_api():
         for event in events:
             event = list(event)
             event[4] = user_display(event[4])
+            event[5] = _format_local_timestamp(event[5])
             events_with_usernames.append(event)
         events_to_render = events_with_usernames
     else:
-        events_to_render = [list(event) for event in events]
+        events_to_render = []
+        for event in events:
+            event = list(event)
+            event[5] = _format_local_timestamp(event[5])
+            events_to_render.append(event)
     current_app.logger.debug(f"[AJAX /events/api] events_to_render: {events_to_render}")
     return {'events': events_to_render, 'has_next': has_next}
 
@@ -222,4 +251,6 @@ def event_detail(event_id):
         event = cur.fetchone()
         if not event:
             abort(404)
+    event = list(event)
+    event[5] = _format_local_timestamp(event[5])
     return render_template('event_detail.html', event=event)

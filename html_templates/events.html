@@ -55,7 +55,7 @@
   <tbody>
     {% for event in events %}
     <tr>
-      <td>{% if event[5] %}{{ event[5][:16].replace('T', ' ') }}{% endif %}</td>
+      <td>{{ event[5] }}</td>
       {% if show_user_column %}
         <td>{{ event[4] }}</td>
       {% endif %}
