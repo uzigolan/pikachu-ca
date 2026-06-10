@@ -229,6 +229,37 @@ def _generate_challenge_password(usage_mode="single_use", validity=None):
     return data
 
 
+@pytest.mark.skipif(not feature_enabled("api_tokens"), reason="API tokens are enterprise-only")
+def test_api_challenge_password_bearer_only_request_remains_compatible(client, app):
+    cfg = configparser.ConfigParser()
+    cfg.read(ROOT_DIR / "config.ini")
+    if not cfg.getboolean("SCEP", "challenge_password_enabled", fallback=False):
+        pytest.skip("Challenge passwords disabled in config.")
+
+    username = f"cpw_api_{uuid.uuid4().hex[:8]}"
+    _ensure_user(app, username, "cpwpass", role="user")
+
+    with app.app_context():
+        user = get_user_by_username(username)
+        assert user is not None
+        raw_token, _ = create_api_token(user.id, "challenge-password-default", validity="1d")
+
+    resp = client.post(
+        "/api/challenge_passwords",
+        headers={"Authorization": f"Bearer {raw_token}"},
+        base_url="http://localhost:80",
+    )
+    assert resp.status_code == 201
+    assert resp.is_json
+    payload = resp.get_json()
+    assert payload["value"]
+    assert payload["user_id"] == user.id
+    assert payload["usage_mode"] == "single_use"
+    assert payload["use_count"] == 0
+    assert payload["validity"] == cfg.get("SCEP", "challenge_password_validity", fallback="60m").strip()
+    assert payload["expires_at"]
+
+
 def _load_challenge_password_row(value):
     cfg = configparser.ConfigParser()
     cfg.read(ROOT_DIR / "config.ini")
