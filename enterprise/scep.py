@@ -30,6 +30,12 @@ from envelope import PKCSPKIEnvelopeBuilder
 from config_storage import ConfigStorage
 from openssl_utils import get_provider_args
 from ra_policies import RAPolicyManager, DEFAULT_VALIDITY_DAYS
+from enterprise.challenge_passwords import (
+    CHALLENGE_MODE_SINGLE_USE,
+    compute_expiry,
+    derive_use_count,
+    normalize_challenge_mode,
+)
 
 
 scep_app = Blueprint('scep_app', __name__)
@@ -176,43 +182,62 @@ def scep():
         db_path = current_app.config.get("DB_PATH")
         with sqlite3.connect(db_path) as conn:
           cur = conn.cursor()
-          cur.execute("SELECT consumed, user_id, validity, created_at FROM challenge_passwords WHERE value = ?", (challenge_value,))
+          cur.execute(
+            """
+            SELECT value, consumed, user_id, validity, created_at, usage_mode, use_count, last_used_at
+            FROM challenge_passwords WHERE value = ?
+            """,
+            (challenge_value,),
+          )
           row = cur.fetchone()
           if not row:
             current_app.logger.error(f"Challenge password {challenge_value} not found in DB.")
             return abort(400, "Challenge password not recognized or expired")
-          consumed, user_id, validity, created_at = row
-          if consumed:
+          row_data = {
+            "value": row[0],
+            "consumed": row[1],
+            "user_id": row[2],
+            "validity": row[3],
+            "created_at": row[4],
+            "usage_mode": row[5],
+            "use_count": row[6],
+            "last_used_at": row[7],
+          }
+          usage_mode = normalize_challenge_mode(row_data["usage_mode"])
+          use_count = derive_use_count(row_data)
+          if usage_mode == CHALLENGE_MODE_SINGLE_USE and use_count > 0:
             current_app.logger.error(f"Challenge password {challenge_value} already consumed.")
             return abort(400, "Challenge password already used")
-          # Check expiry
-          m = re.match(r'^(\d+)([mhd])$', validity)
-          if m:
-            num, unit = int(m.group(1)), m.group(2)
-            if unit == 'm':
-              delta = datetime.timedelta(minutes=num)
-            elif unit == 'h':
-              delta = datetime.timedelta(hours=num)
-            elif unit == 'd':
-              delta = datetime.timedelta(days=num)
-            else:
-              delta = datetime.timedelta(minutes=60)
-          else:
-            delta = datetime.timedelta(minutes=60)
-          try:
-            created_dt = datetime.datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S UTC')
-          except Exception:
-            # Treat unparsable timestamps as already expired
-            created_dt = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-          expires_at = created_dt + delta
-          if datetime.datetime.utcnow() > expires_at:
+          expires_at, expired = compute_expiry(row_data["created_at"], row_data["validity"], usage_mode)
+          if expired:
             current_app.logger.error(f"Challenge password {challenge_value} expired at {expires_at}.")
             return abort(400, "Challenge password expired")
           # Optionally log user_id and validity
-          current_app.logger.info(f"Challenge password {challenge_value} accepted for user_id={user_id}, validity={validity}")
-          challenge_user_id = user_id
-          # Mark as consumed
-          cur.execute("UPDATE challenge_passwords SET consumed = 1 WHERE value = ?", (challenge_value,))
+          current_app.logger.info(
+            "Challenge password %s accepted for user_id=%s, validity=%s, usage_mode=%s, use_count=%s",
+            challenge_value,
+            row_data["user_id"],
+            row_data["validity"],
+            usage_mode,
+            use_count,
+          )
+          challenge_user_id = row_data["user_id"]
+          # Single-use passwords are consumed on first successful use.
+          new_use_count = use_count + 1
+          consumed_value = 1 if usage_mode == CHALLENGE_MODE_SINGLE_USE else 0
+          cur.execute(
+            """
+            UPDATE challenge_passwords
+            SET consumed = ?, use_count = ?, last_used_at = ?
+            WHERE value = ?
+            """,
+            (
+              consumed_value,
+              new_use_count,
+              datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
+              challenge_value,
+            ),
+          )
           conn.commit()
       finally:
         if os.path.exists(temp_csr_path):

@@ -33,6 +33,14 @@ $keyPath = "$RESULTS_DIR/test_pass.key"
 $csrPath = "$RESULTS_DIR/test_pass.csr"
 $crtPath = "$RESULTS_DIR/enrolled_pass.crt"
 $caCrtPath = "$RESULTS_DIR/ca_pass.crt"
+$sscepExe = "tests\sscep\sscep.exe"
+if (-not (Test-Path $sscepExe)) {
+    $sscepExe = "tests\sscep\build\Release\sscep.exe"
+}
+if (-not (Test-Path $sscepExe)) {
+    Write-Host "[ERROR] sscep.exe not found under tests\\sscep" -ForegroundColor Red
+    exit 1
+}
 
 # Check challenge_password_enabled in config.ini
 $challengeEnabled = Get-ConfigValue $CONFIG_PATH "SCEP" "challenge_password_enabled"
@@ -53,7 +61,7 @@ Write-Host ""
 # Generate test credentials with challenge password
 Write-Host "[Prep] Generating test credentials with challenge password..." -ForegroundColor Cyan
 $now = Get-Date
-$cn  = "sscep-test-pass-$($now.Hour):$($now.Minute):$($now.Day):$($now.Month):$($now.Year)"
+$cn  = "sscep-test-pass-$($now.Hour):$($now.Minute):$($now.Second):$($now.Day):$($now.Month):$($now.Year)"
 $configFile = "$RESULTS_DIR/openssl_csr_pass.cnf"
 $configContent = "[ req ]`ndistinguished_name = dn`nattributes = req_attrs`nprompt = no`n[ dn ]`nCN = $cn`n[ req_attrs ]`nchallengePassword = $challengePassword"
 $configContent | Set-Content $configFile
@@ -80,12 +88,20 @@ $env:PATH = "C:\Program Files\OpenSSL-Win64\bin;" + $env:PATH
 
 # Test 1: GetCaps
 Write-Host "[1/3] Testing GetCaps - Query server capabilities" -ForegroundColor Yellow
-& tests\sscep\sscep.exe getcaps -u $SCEP_URL -v
+& $sscepExe getcaps -u $SCEP_URL -v
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] sscep getcaps failed" -ForegroundColor Red
+    exit 1
+}
 Write-Host ""
 
 # Test 2: GetCA
 Write-Host "[2/3] Testing GetCA - Download CA certificate" -ForegroundColor Yellow
-& tests\sscep\sscep.exe getca -u $SCEP_URL -c $caCrtPath -v
+& $sscepExe getca -u $SCEP_URL -c $caCrtPath -v
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] sscep getca failed" -ForegroundColor Red
+    exit 1
+}
 if (Test-Path $caCrtPath) {
     Write-Host "      Done - CA certificate downloaded" -ForegroundColor Green
     openssl x509 -in $caCrtPath -noout -subject -issuer 2>$null | ForEach-Object {
@@ -96,7 +112,11 @@ Write-Host ""
 
 # Test 3: Enroll
 Write-Host "[3/3] Testing Enroll - Certificate enrollment" -ForegroundColor Yellow
-& tests\sscep\sscep.exe enroll -u $SCEP_URL -k $keyPath -r $csrPath -c $caCrtPath -l $crtPath -E aes -S sha256 -v
+& $sscepExe enroll -u $SCEP_URL -k $keyPath -r $csrPath -c $caCrtPath -l $crtPath -E aes -S sha256 -v
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] sscep enroll failed" -ForegroundColor Red
+    exit 1
+}
 if (Test-Path $crtPath) {
     Write-Host "      Done - Certificate enrolled successfully" -ForegroundColor Green
     $certInfo = openssl x509 -in $crtPath -noout -subject -issuer -dates -serial 2>$null

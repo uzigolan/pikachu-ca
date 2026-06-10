@@ -307,9 +307,11 @@ Check `logs/server.log` for `Vault integration is ENABLED` to confirm.
 ## SCEP Challenge Passwords
 
 When `[SCEP] challenge_password_enabled = true`:
-- Only CSRs with a valid, unused challenge password are accepted
-- Each password is single-use and persisted in the database
-- Missing, expired, or consumed passwords are rejected
+- Only CSRs with a valid challenge password are accepted
+- Passwords are persisted in the database and can be created as single-use, reusable-until-expiry, or reusable-without-expiry
+- Single-use passwords become consumed after one successful enrollment
+- Reusable passwords track how many times they were used
+- Missing, expired, or consumed single-use passwords are rejected
 
 Generate and monitor challenge passwords at `/challenge_passwords` in the web UI. EST and other protocols are unaffected.
 

@@ -45,7 +45,10 @@ def main():
         user_id INTEGER,
         created_at TEXT,
         validity TEXT,
-        consumed INTEGER DEFAULT 0
+        consumed INTEGER DEFAULT 0,
+        usage_mode TEXT DEFAULT 'single_use',
+        use_count INTEGER DEFAULT 0,
+        last_used_at TEXT
     )''')
 
     print(f"[init_db] Using DB: {db_path}")

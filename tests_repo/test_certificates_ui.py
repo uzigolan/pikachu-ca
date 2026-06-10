@@ -3,6 +3,7 @@ import time
 import pytest
 import configparser
 from pathlib import Path
+from flask_login.utils import _create_identifier
 from sqlalchemy import text
 from extensions import db
 
@@ -33,6 +34,35 @@ import re
 
 IS_ENTERPRISE = os.environ.get("PIKACHU_EDITION", "community").strip().lower() == "enterprise"
 
+
+def _challenge_passwords_enabled():
+	cfg = configparser.ConfigParser()
+	cfg.read(Path(__file__).resolve().parents[1] / "config.ini")
+	return IS_ENTERPRISE and cfg.getboolean("SCEP", "challenge_password_enabled", fallback=False)
+
+
+def _login_admin(client):
+	rv = login(client, 'admin', 'pikachu')
+	with client.application.app_context():
+		row = db.session.execute(
+			text("SELECT id FROM users WHERE username = :u"),
+			{"u": "admin"},
+		).fetchone()
+	assert row is not None, "Admin user not found in DB"
+	with client.application.test_request_context('/', headers={"User-Agent": "pytest-client"}):
+		session_id = _create_identifier()
+	with client.session_transaction() as sess:
+		sess["_user_id"] = str(row[0])
+		sess["_fresh"] = True
+		sess["_id"] = session_id
+	return client.get('/', follow_redirects=True)
+
+
+def _get_challenge_passwords(client):
+	resp = client.get('/challenge_passwords/data')
+	assert resp.status_code == 200
+	return resp.get_json() or []
+
 def login(client, username, password):
 	# Always log out before logging in as a new user
 	client.get('/users/logout', follow_redirects=True)
@@ -42,14 +72,18 @@ def login(client, username, password):
 	}, follow_redirects=True)
 	# Keep UI tests portable across DBs where admin password was changed.
 	if rv.request.path == '/users/login':
-		row = db.session.execute(
-			text("SELECT id FROM users WHERE username = :u"),
-			{"u": "admin"},
-		).fetchone()
+		with client.application.app_context():
+			row = db.session.execute(
+				text("SELECT id FROM users WHERE username = :u"),
+				{"u": username},
+			).fetchone()
 		if row:
+			with client.application.test_request_context('/', headers={"User-Agent": "pytest-client"}):
+				session_id = _create_identifier()
 			with client.session_transaction() as sess:
 				sess["_user_id"] = str(row[0])
 				sess["_fresh"] = True
+				sess["_id"] = session_id
 			rv = client.get('/', follow_redirects=True)
 	return rv
 
@@ -107,14 +141,10 @@ def run_cert_lifecycle_step(client, step):
 			return cert.id
 	# Helper to fetch challenge password list (requires logged-in session)
 	def get_challenge_passwords():
-		resp = client.get('/challenge_passwords/data')
-		assert resp.status_code == 200
-		return resp.get_json() or []
+		return _get_challenge_passwords(client)
 	# Helper to know if challenge passwords are enabled
 	def challenge_passwords_enabled():
-		cfg = configparser.ConfigParser()
-		cfg.read(Path(__file__).resolve().parents[1] / "config.ini")
-		return IS_ENTERPRISE and cfg.getboolean("SCEP", "challenge_password_enabled", fallback=False)
+		return _challenge_passwords_enabled()
 
 	if step == 6:
 		do_logout()
@@ -155,6 +185,9 @@ def run_cert_lifecycle_step(client, step):
 		cpw_after = len(get_challenge_passwords())
 		assert cpw_after >= cpw_before + 1, f"Expected challenge password count to increase (before={cpw_before}, after={cpw_after})"
 		latest = get_challenge_passwords()[0]
+		assert latest.get("usage_mode") == "single_use"
+		assert latest.get("use_count") == 0
+		assert latest.get("status_label") == "Available"
 		CHALLENGE_PASSWORD_CACHE['last'] = latest.get("value")
 		print("Step 7 complete: Challenge password created.")
 		do_logout()
@@ -582,4 +615,94 @@ def test_certificate_lifecycle_step(client, html_step_logger, step, desc):
 	except Exception as exc:
 		html_step_logger.append(f"Step {step}: {desc} - FAILED ({exc})")
 		pytest.fail(f"Step {step} ({desc}) failed: {exc}")
+
+
+@pytest.mark.skipif(not IS_ENTERPRISE, reason="Challenge passwords are enterprise-only")
+def test_challenge_password_ui_supports_all_usage_modes(app, monkeypatch):
+	if not _challenge_passwords_enabled():
+		pytest.skip("Challenge passwords disabled in config.")
+	from enterprise import routes as enterprise_routes
+
+	class FakeAdmin:
+		id = 1
+		username = "admin"
+
+		def is_admin(self):
+			return True
+
+	fake_admin = FakeAdmin()
+	monkeypatch.setattr(enterprise_routes, "current_user", fake_admin)
+	with app.test_request_context('/challenge_passwords/data', method='GET'):
+		before = enterprise_routes.challenge_passwords_data().get_json() or []
+	before_values = {entry.get("value") for entry in before}
+	cases = [
+		({"usage_mode": "single_use", "validity": "45m"}, "single_use", "Available", "45m"),
+		({"usage_mode": "reusable", "validity": "2h"}, "reusable", "Available", "2h"),
+		({"usage_mode": "reusable_unlimited", "validity": "90m"}, "reusable_unlimited", "Unlimited", "Unlimited"),
+	]
+	created_values = []
+	try:
+		for payload, expected_mode, expected_status, expected_validity in cases:
+			with app.test_request_context('/challenge_passwords', method='POST', data=payload):
+				resp = enterprise_routes.challenge_passwords()
+				assert resp.status_code == 302
+		with app.test_request_context('/challenge_passwords/data', method='GET'):
+			after = enterprise_routes.challenge_passwords_data().get_json() or []
+		new_entries = [entry for entry in after if entry.get("value") not in before_values][:3]
+		assert len(new_entries) >= 3, f"Expected at least 3 new challenge passwords, found {len(new_entries)}"
+		by_mode = {entry.get("usage_mode"): entry for entry in new_entries}
+		for _, expected_mode, expected_status, expected_validity in cases:
+			entry = by_mode.get(expected_mode)
+			assert entry is not None, f"Missing entry for usage mode {expected_mode}"
+			assert entry.get("status_label") == expected_status
+			assert entry.get("use_count") == 0
+			assert entry.get("validity") == expected_validity
+			created_values.append(entry.get("value"))
+	finally:
+		for value in created_values:
+			with app.test_request_context('/delete_challenge_password', method='POST', data={'value': value}):
+				resp = enterprise_routes.delete_challenge_password()
+				assert resp.status_code == 302
+
+
+@pytest.mark.skipif(not IS_ENTERPRISE, reason="Challenge passwords are enterprise-only")
+def test_consumed_single_use_challenge_password_can_be_deleted(app, monkeypatch):
+	if not _challenge_passwords_enabled():
+		pytest.skip("Challenge passwords disabled in config.")
+	from enterprise import routes as enterprise_routes
+	import sqlite3
+	from flask import current_app
+
+	class FakeAdmin:
+		id = 1
+		username = "admin"
+
+		def is_admin(self):
+			return True
+
+	fake_admin = FakeAdmin()
+	monkeypatch.setattr(enterprise_routes, "current_user", fake_admin)
+	value = "TEST-CONSUMED-DELETE-CPW"
+	with sqlite3.connect(app.config["DB_PATH"]) as conn:
+		conn.execute("DELETE FROM challenge_passwords WHERE value = ?", (value,))
+		conn.execute(
+			"""
+			INSERT INTO challenge_passwords
+			(value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			""",
+			(value, 1, "2026-06-10 10:00:00 UTC", "60m", 1, "single_use", 1, "2026-06-10 10:05:00 UTC"),
+		)
+		conn.commit()
+	try:
+		with app.test_request_context('/delete_challenge_password', method='POST', data={'value': value}):
+			resp = enterprise_routes.delete_challenge_password()
+			assert resp.status_code == 302
+		with sqlite3.connect(app.config["DB_PATH"]) as conn:
+			row = conn.execute("SELECT value FROM challenge_passwords WHERE value = ?", (value,)).fetchone()
+		assert row is None
+	finally:
+		with sqlite3.connect(app.config["DB_PATH"]) as conn:
+			conn.execute("DELETE FROM challenge_passwords WHERE value = ?", (value,))
+			conn.commit()
 

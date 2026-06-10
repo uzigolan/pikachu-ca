@@ -99,4 +99,6 @@ Write-Host "Challenge password created:" -ForegroundColor Cyan
 Write-Host "  Value     : $($response.value)"
 Write-Host "  Expires   : $($response.expires_at)"
 Write-Host "  Validity  : $($response.validity)"
+Write-Host "  Type      : $($response.usage_mode)"
+Write-Host "  Use Count : $($response.use_count)"
 Write-Host "  User ID   : $($response.user_id)"

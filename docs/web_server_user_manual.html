@@ -268,6 +268,11 @@
         <li><code>/api/keys/&lt;name&gt;/private</code>, <code>/api/keys/&lt;name&gt;/public</code> (enterprise token API over HTTPS, with optional TRUSTED_HTTPS mTLS)</li>
       </ul>
       <p>
+        The Challenge Passwords page lists all challenge-password tokens generated for certificate enrollment. These tokens can now be created as
+        <strong>single-use</strong>, <strong>reusable until expiry</strong>, or <strong>reusable without expiry</strong>. Single-use passwords are consumed after one successful
+        SCEP enrollment, while reusable and unlimited passwords remain valid for later SCEP enrollments and track how many times they have been used.
+      </p>
+      <p>
         In Community edition, enterprise feature gates return <code>404</code> for blocked routes.
       </p>
     </div>

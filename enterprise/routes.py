@@ -24,6 +24,16 @@ from cryptography.x509.oid import ExtensionOID
 from flask import Response, current_app, jsonify, make_response, redirect, render_template, request, session, url_for, flash
 from flask_login import current_user
 
+from enterprise.challenge_passwords import (
+    CHALLENGE_MODE_CHOICES,
+    CHALLENGE_MODE_REUSABLE,
+    CHALLENGE_MODE_REUSABLE_UNLIMITED,
+    DEFAULT_CHALLENGE_MODE,
+    build_challenge_password_view,
+    compute_expiry,
+    normalize_challenge_mode,
+    parse_validity_timedelta,
+)
 from enterprise.preshared_keys import (
     api_create_preshared_key,
     api_delete_preshared_key,
@@ -48,7 +58,7 @@ def delete_challenge_password():
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            "SELECT user_id, consumed, created_at, validity FROM challenge_passwords WHERE value = ?",
+            "SELECT value, user_id, consumed, created_at, validity, usage_mode, use_count, last_used_at FROM challenge_passwords WHERE value = ?",
             (value,),
         ).fetchone()
         if not row:
@@ -56,9 +66,6 @@ def delete_challenge_password():
             return redirect(url_for("challenge_passwords"))
         if not current_user.is_admin() and row["user_id"] != current_user.id:
             flash("You do not have permission to delete this challenge password.", "error")
-            return redirect(url_for("challenge_passwords"))
-        if row["consumed"]:
-            flash("Consumed challenge passwords cannot be deleted.", "error")
             return redirect(url_for("challenge_passwords"))
         conn.execute("DELETE FROM challenge_passwords WHERE value = ?", (value,))
         conn.commit()
@@ -84,34 +91,19 @@ def delete_all_expired_challenge_passwords():
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.row_factory = sqlite3.Row
         if current_user.is_admin() and scope == "all":
-            rows = conn.execute("SELECT value, created_at, validity, consumed FROM challenge_passwords").fetchall()
+            rows = conn.execute(
+                "SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at FROM challenge_passwords"
+            ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT value, created_at, validity, consumed, user_id FROM challenge_passwords WHERE user_id = ?",
+                "SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at FROM challenge_passwords WHERE user_id = ?",
                 (current_user.id,),
             ).fetchall()
         to_delete = []
         for row in rows:
-            if row["consumed"]:
-                continue
-            if row["created_at"] and row["validity"]:
-                m = re.match(r"^(\d+)([mhd])$", row["validity"])
-                if not m:
-                    continue
-                num, unit = int(m.group(1)), m.group(2)
-                if unit == "m":
-                    delta = timedelta(minutes=num)
-                elif unit == "h":
-                    delta = timedelta(hours=num)
-                else:
-                    delta = timedelta(days=num)
-                try:
-                    created_dt = datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S UTC")
-                    expires_dt = created_dt + delta
-                    if now > expires_dt:
-                        to_delete.append(row["value"])
-                except Exception:
-                    continue
+            expires_dt, expired = compute_expiry(row["created_at"], row["validity"], row["usage_mode"])
+            if expired and expires_dt and now.replace(tzinfo=timezone.utc) > expires_dt:
+                to_delete.append(row["value"])
         if to_delete:
             conn.executemany("DELETE FROM challenge_passwords WHERE value = ?", [(v,) for v in to_delete])
             conn.commit()
@@ -138,75 +130,19 @@ def challenge_passwords_data():
         conn.row_factory = sqlite3.Row
         if current_user.is_admin():
             rows = conn.execute(
-                "SELECT value, user_id, created_at, validity, consumed FROM challenge_passwords ORDER BY created_at DESC"
+                "SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at FROM challenge_passwords ORDER BY created_at DESC"
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT value, user_id, created_at, validity, consumed FROM challenge_passwords WHERE user_id = ? ORDER BY created_at DESC",
+                "SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at FROM challenge_passwords WHERE user_id = ? ORDER BY created_at DESC",
                 (current_user.id,),
             ).fetchall()
     from user_models import get_username_by_id
 
     result = []
     for row in rows:
-        expires_at_utc = ""
-        expires_at_local = ""
-        expired_flag = False
-        allow_delete = not bool(row["consumed"])
-        if row["created_at"] and row["validity"]:
-            m = re.match(r"^(\d+)([mhd])$", row["validity"])
-            if m:
-                num, unit = int(m.group(1)), m.group(2)
-                if unit == "m":
-                    delta = timedelta(minutes=num)
-                elif unit == "h":
-                    delta = timedelta(hours=num)
-                else:
-                    delta = timedelta(days=num)
-                try:
-                    created_dt = datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=timezone.utc)
-                    expires_dt = created_dt + delta
-                    expires_at_utc = expires_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                    expires_at_local = expires_dt.astimezone().strftime("%Y-%m-%d %H:%M")
-                    expired_flag = datetime.now(timezone.utc) > expires_dt
-                except Exception:
-                    pass
-        result.append(
-            {
-                "value": row["value"],
-                "user": get_username_by_id(row["user_id"]) if row["user_id"] else "",
-                "created_at_utc": row["created_at"],
-                "created_at_local": (
-                    datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S UTC")
-                    .replace(tzinfo=timezone.utc)
-                    .astimezone()
-                    .strftime("%Y-%m-%d %H:%M")
-                )
-                if row["created_at"]
-                else "",
-                "validity": row["validity"],
-                "expires_at_utc": expires_at_utc,
-                "expires_at_local": expires_at_local,
-                "expired": expired_flag,
-                "consumed": bool(row["consumed"]),
-                "allow_delete": allow_delete,
-            }
-        )
+        result.append(build_challenge_password_view(row, get_username_by_id(row["user_id"]) if row["user_id"] else ""))
     return jsonify(result)
-
-
-def _parse_validity_timedelta(validity_str):
-    m = re.match(r"^(\d+)([mhd])$", (validity_str or "").strip())
-    if not m:
-        return timedelta(minutes=60), "60m"
-    num, unit = int(m.group(1)), m.group(2)
-    if unit == "m":
-        return timedelta(minutes=num), validity_str
-    if unit == "h":
-        return timedelta(hours=num), validity_str
-    if unit == "d":
-        return timedelta(days=num), validity_str
-    return timedelta(minutes=60), "60m"
 
 
 def api_create_challenge_password(verify_api_token):
@@ -225,17 +161,32 @@ def api_create_challenge_password(verify_api_token):
     if not current_app.config.get("SCEP_CHALLENGE_PASSWORD_ENABLED", False):
         return jsonify({"error": "Challenge password feature is disabled"}), 400
 
-    validity_str = current_app.config.get("SCEP_CHALLENGE_PASSWORD_VALIDITY", "60m").strip()
-    delta, validity_str = _parse_validity_timedelta(validity_str)
+    payload = request.get_json(silent=True) or {}
+    usage_mode = normalize_challenge_mode(
+        payload.get("usage_mode") or request.form.get("usage_mode") or request.args.get("usage_mode")
+    )
+    default_validity = current_app.config.get("SCEP_CHALLENGE_PASSWORD_VALIDITY", "60m").strip()
+    requested_validity = (
+        payload.get("validity") or request.form.get("validity") or request.args.get("validity") or default_validity
+    )
+    if usage_mode == CHALLENGE_MODE_REUSABLE_UNLIMITED:
+        delta = None
+        validity_str = None
+    else:
+        delta, validity_str = parse_validity_timedelta(str(requested_validity).strip())
     now = datetime.now(timezone.utc)
     value = secrets.token_bytes(16).hex().upper()
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.execute(
-            "INSERT INTO challenge_passwords (value, user_id, created_at, validity, consumed) VALUES (?, ?, ?, ?, 0)",
-            (value, token_info["user_id"], now.strftime("%Y-%m-%d %H:%M:%S UTC"), validity_str),
+            """
+            INSERT INTO challenge_passwords
+            (value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at)
+            VALUES (?, ?, ?, ?, 0, ?, 0, NULL)
+            """,
+            (value, token_info["user_id"], now.strftime("%Y-%m-%d %H:%M:%S UTC"), validity_str, usage_mode),
         )
         conn.commit()
-    expires_at = (now + delta).strftime("%Y-%m-%d %H:%M:%S UTC")
+    expires_at = (now + delta).strftime("%Y-%m-%d %H:%M:%S UTC") if delta else None
     try:
         from events import log_event
 
@@ -244,7 +195,7 @@ def api_create_challenge_password(verify_api_token):
             resource_type="challenge_password",
             resource_name=value,
             user_id=token_info["user_id"],
-            details={"validity": validity_str, "via": "api_token"},
+            details={"validity": validity_str, "usage_mode": usage_mode, "via": "api_token"},
         )
     except Exception:
         pass
@@ -253,7 +204,9 @@ def api_create_challenge_password(verify_api_token):
             {
                 "value": value,
                 "user_id": token_info["user_id"],
-                "validity": validity_str,
+                "validity": validity_str or "Unlimited",
+                "usage_mode": usage_mode,
+                "use_count": 0,
                 "created_at": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
                 "expires_at": expires_at,
             }
@@ -263,25 +216,25 @@ def api_create_challenge_password(verify_api_token):
 
 
 def challenge_passwords():
-    validity_str = current_app.config.get("SCEP_CHALLENGE_PASSWORD_VALIDITY", "60m")
-    m = re.match(r"^(\d+)([mhd])$", validity_str)
-    if m:
-        num, unit = int(m.group(1)), m.group(2)
-        if unit == "m":
-            delta = timedelta(minutes=num)
-        elif unit == "h":
-            delta = timedelta(hours=num)
-        else:
-            delta = timedelta(days=num)
-    else:
-        delta = timedelta(minutes=60)
+    default_validity = current_app.config.get("SCEP_CHALLENGE_PASSWORD_VALIDITY", "60m").strip()
     if request.method == "POST":
+        usage_mode = normalize_challenge_mode(request.form.get("usage_mode") or DEFAULT_CHALLENGE_MODE)
+        requested_validity = (request.form.get("validity") or default_validity).strip()
+        if usage_mode == CHALLENGE_MODE_REUSABLE_UNLIMITED:
+            delta = None
+            validity_str = None
+        else:
+            delta, validity_str = parse_validity_timedelta(requested_validity)
         now = datetime.now(timezone.utc)
         value = secrets.token_bytes(16).hex().upper()
         with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
             conn.execute(
-                "INSERT INTO challenge_passwords (value, user_id, created_at, validity, consumed) VALUES (?, ?, ?, ?, 0)",
-                (value, current_user.id, now.strftime("%Y-%m-%d %H:%M:%S UTC"), validity_str),
+                """
+                INSERT INTO challenge_passwords
+                (value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at)
+                VALUES (?, ?, ?, ?, 0, ?, 0, NULL)
+                """,
+                (value, current_user.id, now.strftime("%Y-%m-%d %H:%M:%S UTC"), validity_str, usage_mode),
             )
             conn.commit()
         try:
@@ -292,7 +245,7 @@ def challenge_passwords():
                 resource_type="challenge_password",
                 resource_name=value,
                 user_id=current_user.id,
-                details={"validity": validity_str},
+                details={"validity": validity_str, "usage_mode": usage_mode},
             )
         except Exception:
             pass
@@ -300,8 +253,12 @@ def challenge_passwords():
             "value": value,
             "user": current_user.username,
             "created_at": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "validity": validity_str,
+            "validity": validity_str or "Unlimited",
+            "usage_mode": usage_mode,
+            "usage_mode_label": "Reusable Unlimited" if usage_mode == CHALLENGE_MODE_REUSABLE_UNLIMITED else ("Reusable" if usage_mode == CHALLENGE_MODE_REUSABLE else "Single Use"),
+            "use_count": 0,
             "consumed": False,
+            "expires_at": (now + delta).strftime("%Y-%m-%d %H:%M:%S UTC") if delta else None,
         }
         return redirect(url_for("challenge_passwords"))
     generated = session.pop("generated_challenge_password", None)
@@ -309,71 +266,26 @@ def challenge_passwords():
         conn.row_factory = sqlite3.Row
         if current_user.is_admin():
             rows = conn.execute(
-                "SELECT value, user_id, created_at, validity, consumed FROM challenge_passwords ORDER BY created_at DESC"
+                "SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at FROM challenge_passwords ORDER BY created_at DESC"
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT value, user_id, created_at, validity, consumed FROM challenge_passwords WHERE user_id = ? ORDER BY created_at DESC",
+                "SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at FROM challenge_passwords WHERE user_id = ? ORDER BY created_at DESC",
                 (current_user.id,),
             ).fetchall()
     from user_models import get_username_by_id
 
-    challenge_passwords = []
-    for row in rows:
-        expires_at = ""
-        expires_at_local = ""
-        if row["created_at"] and row["validity"]:
-            m = re.match(r"^(\d+)([mhd])$", row["validity"])
-            if m:
-                num, unit = int(m.group(1)), m.group(2)
-                if unit == "m":
-                    delta = timedelta(minutes=num)
-                elif unit == "h":
-                    delta = timedelta(hours=num)
-                else:
-                    delta = timedelta(days=num)
-                try:
-                    created_dt = datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=timezone.utc)
-                    expires_dt = created_dt + delta
-                    expires_at = expires_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                    expires_at_local = expires_dt.astimezone().strftime("%Y-%m-%d %H:%M")
-                except Exception:
-                    expires_at = ""
-        expired = False
-        allow_delete = not bool(row["consumed"])
-        if expires_at and not bool(row["consumed"]):
-            try:
-                expires_dt = datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=timezone.utc)
-                if datetime.now(timezone.utc) > expires_dt:
-                    expired = True
-            except Exception:
-                pass
-        challenge_passwords.append(
-            {
-                "value": row["value"],
-                "user": get_username_by_id(row["user_id"]) if row["user_id"] else "",
-                "created_at_utc": row["created_at"],
-                "created_at_local": (
-                    datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S UTC")
-                    .replace(tzinfo=timezone.utc)
-                    .astimezone()
-                    .strftime("%Y-%m-%d %H:%M")
-                )
-                if row["created_at"]
-                else "",
-                "validity": row["validity"],
-                "expires_at_utc": expires_at,
-                "expires_at_local": expires_at_local,
-                "consumed": bool(row["consumed"]),
-                "expired": expired,
-                "allow_delete": allow_delete,
-            }
-        )
+    challenge_passwords = [
+        build_challenge_password_view(row, get_username_by_id(row["user_id"]) if row["user_id"] else "")
+        for row in rows
+    ]
     return render_template(
         "challenge_passwords.html",
         generated=generated,
         challenge_passwords=challenge_passwords,
         is_admin=current_user.is_admin(),
+        challenge_mode_choices=CHALLENGE_MODE_CHOICES,
+        default_validity=default_validity,
     )
 
 

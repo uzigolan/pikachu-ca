@@ -12,6 +12,7 @@ import pytest
 import requests
 
 from edition import feature_enabled
+from enterprise.challenge_passwords import build_challenge_password_view
 from enterprise.tokens import create_api_token
 from extensions import db
 from user_models import create_user_db, get_user_by_username
@@ -190,7 +191,7 @@ def test_sscep_core(request):
         pytest.fail(f"test_sscep.ps1 failed:\n{_combined_output(proc)}")
 
 
-def _generate_challenge_password():
+def _generate_challenge_password(usage_mode="single_use", validity=None):
     cfg = configparser.ConfigParser()
     cfg.read(ROOT_DIR / "config.ini")
     http_port = cfg.get("DEFAULT", "http_port", fallback="80")
@@ -202,10 +203,14 @@ def _generate_challenge_password():
         return "NO_TOKEN"
 
     base_url = f"http://127.0.0.1:{http_port}"
+    payload = {"usage_mode": usage_mode}
+    if validity:
+        payload["validity"] = validity
     try:
         resp = requests.post(
             f"{base_url}/api/challenge_passwords",
             headers={"Authorization": f"Bearer {token}"},
+            json=payload,
             timeout=20,
         )
     except Exception as e:
@@ -219,10 +224,37 @@ def _generate_challenge_password():
     except Exception:
         return "PARSE_FAILED"
 
-    value = data.get("value")
-    if not value:
+    if not data.get("value"):
         return "EMPTY_PASSWORD"
-    return value
+    return data
+
+
+def _load_challenge_password_row(value):
+    cfg = configparser.ConfigParser()
+    cfg.read(ROOT_DIR / "config.ini")
+    db_rel = cfg.get("PATHS", "db_path", fallback="PKI.db")
+    db_path = ROOT_DIR / db_rel
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT value, user_id, created_at, validity, consumed, usage_mode, use_count, last_used_at
+            FROM challenge_passwords
+            WHERE value = ?
+            """,
+            (value,),
+        ).fetchone()
+    assert row is not None, f"Challenge password {value} not found in DB"
+    return row
+
+
+def _run_sscep_with_password(request, challenge_value, output_name):
+    proc = _run_ps_script("test_sscep_pass.ps1", args=[challenge_value], timeout=180)
+    output = _emit_and_attach(request, output_name, proc)
+    _skip_if_missing_tool(proc, ["sscep.exe", "openssl"])
+    if proc.returncode != 0:
+        pytest.fail(f"{output_name} failed:\n{output}")
+    return output
 
 
 def test_sscep_with_challenge_password(request):
@@ -230,13 +262,51 @@ def test_sscep_with_challenge_password(request):
     if not _is_enterprise():
         pytest.skip("SCEP challenge password is enterprise-only in community mode")
     challenge = _generate_challenge_password()
-    if not challenge or challenge.startswith(("LOGIN_FAILED", "GEN_FAILED", "DATA_FAILED", "NO_PASSWORDS", "EMPTY_PASSWORD", "PARSE_FAILED")):
+    if not isinstance(challenge, dict):
         pytest.skip(f"Could not generate challenge password ({challenge})")
-    proc = _run_ps_script("test_sscep_pass.ps1", args=[challenge], timeout=180)
-    output = _emit_and_attach(request, "test_sscep_pass.ps1 output", proc)
-    _skip_if_missing_tool(proc, ["sscep.exe", "openssl"])
-    if proc.returncode != 0:
-        pytest.fail(f"test_sscep_pass.ps1 failed:\n{output}")
+    _run_sscep_with_password(request, challenge["value"], "test_sscep_pass.ps1 output")
+    row = _load_challenge_password_row(challenge["value"])
+    assert row["usage_mode"] == "single_use"
+    assert row["consumed"] == 1
+    assert row["use_count"] >= 1
+    view = build_challenge_password_view(row)
+    assert view["status_label"] == "Consumed"
+
+
+def test_sscep_with_reusable_challenge_password_can_enroll_twice(request):
+    """SCEP reusable challenge password should allow multiple enrollments."""
+    if not _is_enterprise():
+        pytest.skip("SCEP challenge password is enterprise-only in community mode")
+    challenge = _generate_challenge_password(usage_mode="reusable", validity="30m")
+    if not isinstance(challenge, dict):
+        pytest.skip(f"Could not generate reusable challenge password ({challenge})")
+    _run_sscep_with_password(request, challenge["value"], "test_sscep_pass_reusable_1.ps1 output")
+    _run_sscep_with_password(request, challenge["value"], "test_sscep_pass_reusable_2.ps1 output")
+    row = _load_challenge_password_row(challenge["value"])
+    assert row["usage_mode"] == "reusable"
+    assert row["consumed"] == 0
+    assert row["use_count"] >= 2
+    assert row["last_used_at"]
+    view = build_challenge_password_view(row)
+    assert view["status_label"] == "Used - Reusable"
+
+
+def test_sscep_with_unlimited_challenge_password_can_enroll_twice(request):
+    """SCEP unlimited challenge password should allow repeated enrollments without expiry."""
+    if not _is_enterprise():
+        pytest.skip("SCEP challenge password is enterprise-only in community mode")
+    challenge = _generate_challenge_password(usage_mode="reusable_unlimited")
+    if not isinstance(challenge, dict):
+        pytest.skip(f"Could not generate unlimited challenge password ({challenge})")
+    _run_sscep_with_password(request, challenge["value"], "test_sscep_pass_unlimited_1.ps1 output")
+    _run_sscep_with_password(request, challenge["value"], "test_sscep_pass_unlimited_2.ps1 output")
+    row = _load_challenge_password_row(challenge["value"])
+    assert row["usage_mode"] == "reusable_unlimited"
+    assert row["consumed"] == 0
+    assert row["use_count"] >= 2
+    assert row["validity"] in (None, "")
+    view = build_challenge_password_view(row)
+    assert view["status_label"] == "Used - Unlimited"
 
 
 def test_enterprise_endpoint_est_present(client):

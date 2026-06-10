@@ -30,7 +30,10 @@ def migrate_db():
         user_id INTEGER,
         created_at TEXT,
         validity TEXT,
-        consumed INTEGER DEFAULT 0
+        consumed INTEGER DEFAULT 0,
+        usage_mode TEXT DEFAULT 'single_use',
+        use_count INTEGER DEFAULT 0,
+        last_used_at TEXT
     )''')
     # API tokens table (hash-only storage)
     cur.execute('''CREATE TABLE IF NOT EXISTS api_tokens (
@@ -69,6 +72,15 @@ def migrate_db():
 
     if not column_exists('challenge_passwords', 'validity'):
         cur.execute("ALTER TABLE challenge_passwords ADD COLUMN validity TEXT")
+    if not column_exists('challenge_passwords', 'usage_mode'):
+        cur.execute("ALTER TABLE challenge_passwords ADD COLUMN usage_mode TEXT DEFAULT 'single_use'")
+    if not column_exists('challenge_passwords', 'use_count'):
+        cur.execute("ALTER TABLE challenge_passwords ADD COLUMN use_count INTEGER DEFAULT 0")
+    if not column_exists('challenge_passwords', 'last_used_at'):
+        cur.execute("ALTER TABLE challenge_passwords ADD COLUMN last_used_at TEXT")
+    cur.execute("UPDATE challenge_passwords SET usage_mode = 'single_use' WHERE usage_mode IS NULL OR TRIM(usage_mode) = ''")
+    cur.execute("UPDATE challenge_passwords SET use_count = 1 WHERE consumed = 1 AND (use_count IS NULL OR use_count = 0)")
+    cur.execute("UPDATE challenge_passwords SET use_count = 0 WHERE use_count IS NULL")
 
     # --- USER EVENTS TABLE LOGIC ---
     cur.execute('''CREATE TABLE IF NOT EXISTS user_events (
