@@ -1430,28 +1430,61 @@ def convert_private_key_formats(pem_path):
 def inspect():
     result = None
     formats = None
+    check_report = None
+    include_formats = False
+    active_tab = "inspect"
+    check_mode = "auto"
 
     if request.method == "POST":
-        data = request.form.get("inspect_data", "").strip()
-        include_formats = request.form.get("show_formats") == "on"
-        result, formats = inspect_logic.run_inspect(
-            data,
-            DER_TYPES,
-            convert_public_key_formats,
-            convert_private_key_formats,
-            build_cert_public_key_formats,
-            certificate_to_dict,
-            is_pqc_public_key,
-            is_ssh2_supported,
-            logger=app.logger,
-            include_formats=include_formats
-        )
+        active_tab = request.form.get("active_tab", "inspect")
+        if active_tab == "check":
+            check_mode = "auto"
+
+            primary_upload = request.files.get("check_primary_file")
+            secondary_upload = request.files.get("check_secondary_file")
+            tertiary_upload = request.files.get("check_tertiary_file")
+
+            primary_upload_bytes = primary_upload.read() if primary_upload and primary_upload.filename else None
+            secondary_upload_bytes = secondary_upload.read() if secondary_upload and secondary_upload.filename else None
+            tertiary_upload_bytes = tertiary_upload.read() if tertiary_upload and tertiary_upload.filename else None
+
+            check_report = inspect_logic.build_check_report(
+                check_mode,
+                primary_text=request.form.get("check_primary_text", "").strip(),
+                primary_upload_bytes=primary_upload_bytes,
+                primary_upload_name=primary_upload.filename if primary_upload and primary_upload.filename else "",
+                secondary_text=request.form.get("check_secondary_text", "").strip(),
+                secondary_upload_bytes=secondary_upload_bytes,
+                secondary_upload_name=secondary_upload.filename if secondary_upload and secondary_upload.filename else "",
+                tertiary_text=request.form.get("check_tertiary_text", "").strip(),
+                tertiary_upload_bytes=tertiary_upload_bytes,
+                tertiary_upload_name=tertiary_upload.filename if tertiary_upload and tertiary_upload.filename else "",
+            )
+        else:
+            data = request.form.get("inspect_data", "").strip()
+            include_formats = request.form.get("show_formats") == "on"
+            if data:
+                result, formats = inspect_logic.run_inspect(
+                    data,
+                    DER_TYPES,
+                    convert_public_key_formats,
+                    convert_private_key_formats,
+                    build_cert_public_key_formats,
+                    certificate_to_dict,
+                    is_pqc_public_key,
+                    is_ssh2_supported,
+                    logger=app.logger,
+                    include_formats=include_formats
+                )
 
     return render_template("inspect.html",
                            result=result,
+                           check_report=check_report,
                            formats=formats,
                            include_formats=include_formats if request.method == "POST" else False,
-                           der_types=[lbl for lbl, _ in DER_TYPES])
+                           der_types=[lbl for lbl, _ in DER_TYPES],
+                           active_tab=active_tab,
+                           check_mode=check_mode)
 
 
 def inspectM():

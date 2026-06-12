@@ -829,7 +829,7 @@
           {% endif %}
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/events') %} active{% endif %}" href="/events">Events</a></li>
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/api') %} active{% endif %}" href="/api">APIs</a></li>
-          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/inspect') %} active{% endif %}" href="/inspect">Inspect</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/inspect') %} active{% endif %}" href="/inspect">Insect</a></li>
           {% if current_user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="javascript:void(0);" onclick="openConfig();">Config</a>
@@ -879,7 +879,7 @@
       <a class="floating-path-link" href="/va">VA(crl)</a>
       <a class="floating-path-link" href="/ca">CA</a>
       <a class="floating-path-link" href="/events">Events</a>
-      <a class="floating-path-link" href="/inspect">Inspect</a>
+      <a class="floating-path-link" href="/inspect">Insect</a>
       <a class="floating-path-link" href="/logs">Logs</a>
     </div>
   </div>
@@ -972,22 +972,74 @@
   </script>
   <script>
   document.addEventListener("DOMContentLoaded", function() {
+    function fallbackCopyText(text) {
+      var temp = document.createElement("textarea");
+      temp.value = text;
+      temp.setAttribute("readonly", "");
+      temp.style.position = "fixed";
+      temp.style.top = "-9999px";
+      temp.style.left = "-9999px";
+      document.body.appendChild(temp);
+      temp.focus();
+      temp.select();
+      try {
+        return document.execCommand("copy");
+      } catch (err) {
+        return false;
+      } finally {
+        document.body.removeChild(temp);
+      }
+    }
+
+    function flashCopyState(btn, label) {
+      const original = btn.textContent;
+      btn.textContent = label;
+      setTimeout(function() {
+        btn.textContent = original;
+      }, 1200);
+    }
+
+    window.copyTextFromTarget = function(targetId, btn) {
+      const targetEl = document.getElementById(targetId);
+      if (!targetEl) {
+        if (btn) flashCopyState(btn, "Failed");
+        return false;
+      }
+      let text = "";
+      if (targetEl.tagName === "TEXTAREA" || targetEl.tagName === "INPUT") {
+        text = targetEl.value || "";
+      } else {
+        text = targetEl.textContent || "";
+      }
+      text = text.trim();
+      if (!text) {
+        if (btn) flashCopyState(btn, "Empty");
+        return false;
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function() {
+          if (btn) flashCopyState(btn, "Copied!");
+        }).catch(function() {
+          if (fallbackCopyText(text)) {
+            if (btn) flashCopyState(btn, "Copied!");
+          } else if (btn) {
+            flashCopyState(btn, "Failed");
+          }
+        });
+        return true;
+      }
+      if (fallbackCopyText(text)) {
+        if (btn) flashCopyState(btn, "Copied!");
+        return true;
+      }
+      if (btn) flashCopyState(btn, "Failed");
+      return false;
+    };
+
     document.querySelectorAll("[data-copy-target]").forEach(function(btn) {
       btn.addEventListener("click", function() {
         const targetId = btn.getAttribute("data-copy-target");
-        const targetEl = document.getElementById(targetId);
-        if (!targetEl || !navigator.clipboard) return;
-        let text = "";
-        if (targetEl.tagName === "TEXTAREA" || targetEl.tagName === "INPUT") {
-          text = targetEl.value || "";
-        } else {
-          text = targetEl.textContent || "";
-        }
-        navigator.clipboard.writeText(text.trim()).then(function() {
-          const original = btn.textContent;
-          btn.textContent = "Copied!";
-          setTimeout(() => { btn.textContent = original; }, 1200);
-        });
+        window.copyTextFromTarget(targetId, btn);
       });
     });
   });

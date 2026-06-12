@@ -214,7 +214,7 @@
         <tr><td><code>/logs</code></td><td>GET</td><td>Login</td><td>Log viewer page.</td><td>Uses <code>/logs/last</code> polling endpoint.</td></tr>
         <tr><td><code>/logs/last</code></td><td>GET</td><td>Public</td><td>Returns last N log lines as plain text.</td><td>Query: <code>n</code> (clamped 1..5000).</td></tr>
         <tr><td><code>/config</code></td><td>GET, POST</td><td>Login + secret gate</td><td>Displays <code>config.ini</code> after session-level secret confirmation.</td><td>POST form: <code>config_secret</code> must match <code>DELETE_SECRET</code>.</td></tr>
-        <tr><td><code>/inspect</code></td><td>GET, POST</td><td>Login</td><td>Inspects PEM/DER/PKCS/OCSP objects through OpenSSL and parser helpers.</td><td>Output: parsed object details.</td></tr>
+        <tr><td><code>/inspect</code></td><td>GET, POST</td><td>Login</td><td>Insects PEM/DER/PKCS/OCSP objects through OpenSSL and parser helpers.</td><td>Output: parsed object details.</td></tr>
         <tr><td><code>/api</code></td><td>GET</td><td>Login</td><td>In-app API documentation page.</td><td>Output: HTML.</td></tr>
         <tr><td><code>/about</code></td><td>GET</td><td>Login</td><td>About/product page.</td><td>Output: HTML.</td></tr>
         <tr><td><code>/license</code>, <code>/license.html</code></td><td>GET</td><td>Login</td><td>License page.</td><td>Output: rendered HTML text.</td></tr>

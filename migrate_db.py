@@ -202,6 +202,9 @@ def migrate_db():
     ensure_column('profiles', 'template_name', 'TEXT')
     ensure_column('keys', 'user_id', 'INTEGER')
     ensure_column('csrs', 'user_id', 'INTEGER')
+    ensure_column('csrs', 'source', "TEXT DEFAULT 'generated'")
+    ensure_column('csrs', 'external_key_name', 'TEXT')
+    ensure_column('csrs', 'external_profile_name', 'TEXT')
     ensure_column('ra_policies', 'user_id', 'INTEGER')
     ensure_column('ra_policies', 'ext_config', 'TEXT')
     # Ensure last_activity column exists in user_sessions

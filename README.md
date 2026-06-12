@@ -96,7 +96,7 @@ Enterprise-only features include:
 | VA/CRL (`/va`) | Yes | Yes |
 | CA management (`/ca`) | Yes | Yes |
 | Events (`/events`) | Yes | Yes |
-| Inspect (`/inspect`) | Yes | Yes |
+| Insect (`/inspect`) | Yes | Yes |
 | Logs (`/logs`) | Yes | Yes |
 | User management (`/users/manage`, admin) | Yes | Yes |
 | Certificate issuance/revocation/CRL | Yes | Yes |

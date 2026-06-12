@@ -8,6 +8,9 @@ from flask import send_file
 from openssl_utils import get_provider_args
 import io
 from datetime import timezone
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509.oid import NameOID
 x509_requests_bp = Blueprint("requests", __name__, template_folder="html_templates")
 
 from flask_login import current_user, login_required
@@ -18,8 +21,35 @@ class CSR(db.Model):
     key_id = db.Column(db.Integer, nullable=False)
     profile_id = db.Column(db.Integer, nullable=False)
     csr_pem = db.Column(db.Text, nullable=False)
+    source = db.Column(db.String(32), nullable=True, default="generated")
+    external_key_name = db.Column(db.String(255), nullable=True)
+    external_profile_name = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, nullable=True, index=True)
+
+
+def _normalize_csr_pem(text):
+    normalized = (text or "").strip()
+    if not normalized:
+        raise ValueError("CSR data is required.")
+    if "BEGIN CERTIFICATE REQUEST" not in normalized:
+        raise ValueError("CSR must be PEM encoded.")
+    return normalized.rstrip() + "\n"
+
+
+def _parse_csr_pem(csr_pem):
+    try:
+        return x509.load_pem_x509_csr(csr_pem.encode("utf-8"), default_backend())
+    except Exception as exc:
+        raise ValueError(f"Invalid CSR: {exc}") from exc
+
+
+def _derive_csr_name(csr_obj, fallback_name="imported-csr"):
+    attrs = csr_obj.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+    if attrs and attrs[0].value.strip():
+        return attrs[0].value.strip()
+    subject = csr_obj.subject.rfc4514_string().strip()
+    return subject or fallback_name
 
 
 @x509_requests_bp.route("/requests/<int:csr_id>/download", methods=["GET"])
@@ -121,6 +151,68 @@ def generate_csr():
     return render_template("generate_csr.html", keys=keys, profiles=profiles)
 
 
+@x509_requests_bp.route("/requests/import", methods=["GET", "POST"])
+@login_required
+def import_csr():
+    if request.method == "POST":
+        csr_name = (request.form.get("csr_name") or "").strip()
+        external_key_name = (request.form.get("external_key_name") or "").strip()
+        external_profile_name = (request.form.get("external_profile_name") or "").strip()
+        csr_text = (request.form.get("csr_pem") or "").strip()
+        upload = request.files.get("csr_file")
+
+        if upload and upload.filename:
+            try:
+                csr_text = upload.read().decode("utf-8", errors="ignore").strip()
+            except Exception:
+                flash("Failed to read uploaded CSR file.", "error")
+                return redirect(url_for("requests.import_csr"))
+
+        try:
+            csr_pem = _normalize_csr_pem(csr_text)
+            csr_obj = _parse_csr_pem(csr_pem)
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("requests.import_csr"))
+
+        if not csr_name:
+            fallback_name = os.path.splitext(upload.filename)[0] if upload and upload.filename else "imported-csr"
+            csr_name = _derive_csr_name(csr_obj, fallback_name=fallback_name)
+
+        new_csr = CSR(
+            name=csr_name,
+            key_id=0,
+            profile_id=0,
+            csr_pem=csr_pem,
+            source="imported",
+            external_key_name=external_key_name or None,
+            external_profile_name=external_profile_name or None,
+            created_at=datetime.utcnow(),
+            user_id=current_user.id,
+        )
+        db.session.add(new_csr)
+        db.session.commit()
+        try:
+            from events import log_event
+            log_event(
+                event_type="import",
+                resource_type="request",
+                resource_name=csr_name,
+                user_id=current_user.id,
+                details={
+                    "source": "imported",
+                    "external_key_name": external_key_name,
+                    "external_profile_name": external_profile_name,
+                }
+            )
+        except Exception:
+            pass
+        flash("CSR imported successfully.", "success")
+        return redirect(url_for("requests.list_csrs"))
+
+    return render_template("import_csr.html")
+
+
 @x509_requests_bp.route("/requests", methods=["GET"])
 @login_required
 def list_csrs():
@@ -150,6 +242,9 @@ def list_csrs():
     profiles = Profile.query.all()
     key_dict = {key.id: key for key in keys}
     profile_dict = {profile.id: profile for profile in profiles}
+    for csr in csrs:
+        csr.key_display_name = key_dict[csr.key_id].name if csr.key_id in key_dict else (csr.external_key_name or "External / not in DB")
+        csr.profile_display_name = profile_dict[csr.profile_id].template_name if csr.profile_id in profile_dict else (csr.external_profile_name or "External / not in DB")
     return render_template("list_csrs.html", csrs=csrs, key_dict=key_dict, profile_dict=profile_dict, is_admin=is_admin)
 
 
@@ -187,7 +282,17 @@ def view_csr(csr_id):
         csr_obj.created_at_local = dt.astimezone()
     else:
         csr_obj.created_at_local = None
-    return render_template("view_csr.html", csr=csr_obj, key=key_obj, profile=profile_obj, profile_content=profile_content)
+    key_display_name = key_obj.name if key_obj else (csr_obj.external_key_name or "External / not in DB")
+    profile_display_name = profile_obj.template_name if profile_obj else (csr_obj.external_profile_name or "External / not in DB")
+    return render_template(
+        "view_csr.html",
+        csr=csr_obj,
+        key=key_obj,
+        profile=profile_obj,
+        profile_content=profile_content,
+        key_display_name=key_display_name,
+        profile_display_name=profile_display_name,
+    )
 
 @x509_requests_bp.route("/requests/<int:csr_id>/delete", methods=["POST"])
 @login_required

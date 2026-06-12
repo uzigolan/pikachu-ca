@@ -1,168 +1,1260 @@
 {% extends "layout.html" %}
-{% block content %}
-  <h1 class="mb-4">Inspect Data</h1>
-  <form method="post">
-    <div class="form-group">
-      <label for="inspect_data">Paste PEM block or Base64‑encoded DER:</label>
-      <textarea id="inspect_data"
-                name="inspect_data"
-                class="form-control"
-                rows="10">{{ request.form.get('inspect_data', pending_data) }}</textarea>
-    </div>
-    <div class="form-group form-check">
-      <input class="form-check-input" type="checkbox" id="show_formats" name="show_formats" {% if include_formats %}checked{% endif %}>
-      <label class="form-check-label" for="show_formats">Show formats (PKCS8 / SSH2 / SSH2 bare / PuTTY PPK)</label>
-    </div>
+{% block head %}
+  <style>
+    .inspect-shell {
+      display: grid;
+      gap: 1.5rem;
+    }
 
-    {% if der_mode %}
-      <div class="form-group">
-        <label for="der_type">I’ve pasted Base64‑DER. What kind of data is this?</label>
-        <select id="der_type"
-                name="der_type"
-                class="form-control">
-          {% for option in der_types %}
-            <option value="{{ option }}"{% if request.form.get('der_type') == option %} selected{% endif %}>{{ option }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    {% endif %}
+    .inspect-hero {
+      background: linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(29, 78, 216, 0.12));
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 22px;
+      padding: 1.5rem;
+    }
 
-    <div class="form-group">
-      <button type="submit" class="btn btn-primary">Inspect</button>
-      <button type="button" class="btn btn-secondary ml-2" onclick="document.getElementById('inspect_data').value='';">Clear</button>
-    </div>
-  </form>
+    .inspect-hero p {
+      max-width: 58rem;
+      color: var(--muted);
+      margin-bottom: 0;
+    }
 
-    {% if result %}
-      <h2 class="mt-4">Result</h2>
-      <ul class="nav nav-tabs" id="inspectTabs" role="tablist">
-        <li class="nav-item">
-          <a class="nav-link active" id="inspect-openssl-tab" data-toggle="tab" href="#inspect-openssl" role="tab" aria-controls="inspect-openssl" aria-selected="true">OpenSSL</a>
-        </li>
-      {% if formats and formats.kind == "public_key" %}
-        <li class="nav-item">
-          <a class="nav-link" id="inspect-public-pkcs8-tab" data-toggle="tab" href="#inspect-public-pkcs8" role="tab" aria-controls="inspect-public-pkcs8" aria-selected="false">PKCS8</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" id="inspect-public-ssh2-tab" data-toggle="tab" href="#inspect-public-ssh2" role="tab" aria-controls="inspect-public-ssh2" aria-selected="false">SSH2</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" id="inspect-public-ssh2-bare-tab" data-toggle="tab" href="#inspect-public-ssh2-bare" role="tab" aria-controls="inspect-public-ssh2-bare" aria-selected="false">SSH2 (bare)</a>
-        </li>
-      {% elif formats and formats.kind == "private_key" %}
-        <li class="nav-item">
-          <a class="nav-link" id="inspect-private-pkcs8-tab" data-toggle="tab" href="#inspect-private-pkcs8" role="tab" aria-controls="inspect-private-pkcs8" aria-selected="false">PKCS8</a>
-        </li>
-        {% if formats.pkcs1 %}
-          <li class="nav-item">
-            <a class="nav-link" id="inspect-private-pkcs1-tab" data-toggle="tab" href="#inspect-private-pkcs1" role="tab" aria-controls="inspect-private-pkcs1" aria-selected="false">PKCS1</a>
-          </li>
-        {% endif %}
-        {% if formats.sec1 %}
-          <li class="nav-item">
-            <a class="nav-link" id="inspect-private-sec1-tab" data-toggle="tab" href="#inspect-private-sec1" role="tab" aria-controls="inspect-private-sec1" aria-selected="false">SEC1</a>
-          </li>
-        {% endif %}
-        <li class="nav-item">
-          <a class="nav-link" id="inspect-private-putty-tab" data-toggle="tab" href="#inspect-private-putty" role="tab" aria-controls="inspect-private-putty" aria-selected="false">PuTTY (PPK)</a>
-        </li>
-      {% elif formats and formats.kind == "certificate" %}
-        <li class="nav-item">
-          <a class="nav-link" id="inspect-cert-pkcs8-tab" data-toggle="tab" href="#inspect-cert-pkcs8" role="tab" aria-controls="inspect-cert-pkcs8" aria-selected="false">PKCS8</a>
-        </li>
-        {% if not formats.is_pqc_key and formats.is_ssh2_key %}
-          <li class="nav-item">
-            <a class="nav-link" id="inspect-cert-ssh2-tab" data-toggle="tab" href="#inspect-cert-ssh2" role="tab" aria-controls="inspect-cert-ssh2" aria-selected="false">SSH2</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" id="inspect-cert-ssh2-bare-tab" data-toggle="tab" href="#inspect-cert-ssh2-bare" role="tab" aria-controls="inspect-cert-ssh2-bare" aria-selected="false">SSH2 (bare)</a>
-          </li>
-        {% endif %}
-      {% endif %}
-    </ul>
-    <div class="tab-content border border-top-0 p-3" id="inspectTabsContent">
-      <div class="tab-pane fade show active" id="inspect-openssl" role="tabpanel" aria-labelledby="inspect-openssl-tab">
-        <pre class="mb-0">{{ result }}</pre>
-      </div>
-      {% if formats and formats.kind == "public_key" %}
-        <div class="tab-pane fade" id="inspect-public-pkcs8" role="tabpanel" aria-labelledby="inspect-public-pkcs8-tab">
-          {% if formats.pkcs8 %}
-            <pre class="mb-0">{{ formats.pkcs8 }}</pre>
-          {% else %}
-            <p><em>PKCS8 unavailable{% if (formats.errors|default({})).pkcs8 %}: {{ (formats.errors|default({})).pkcs8 }}{% endif %}</em></p>
-          {% endif %}
-        </div>
-        <div class="tab-pane fade" id="inspect-public-ssh2" role="tabpanel" aria-labelledby="inspect-public-ssh2-tab">
-          {% if formats.rfc4716 %}
-            <pre class="mb-0">{{ formats.rfc4716 }}</pre>
-          {% else %}
-            <p><em>SSH2 unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>
-          {% endif %}
-        </div>
-        <div class="tab-pane fade" id="inspect-public-ssh2-bare" role="tabpanel" aria-labelledby="inspect-public-ssh2-bare-tab">
-          {% if formats.openssh %}
-            <pre class="mb-0">{{ formats.openssh }}</pre>
-          {% else %}
-            <p><em>SSH2 (bare) unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>
-          {% endif %}
-        </div>
-      {% elif formats and formats.kind == "private_key" %}
-        <div class="tab-pane fade" id="inspect-private-pkcs8" role="tabpanel" aria-labelledby="inspect-private-pkcs8-tab">
-          {% if formats.pkcs8 %}
-            <pre class="mb-0">{{ formats.pkcs8 }}</pre>
-          {% else %}
-            <p><em>PKCS8 unavailable{% if (formats.errors|default({})).pkcs8 %}: {{ (formats.errors|default({})).pkcs8 }}{% endif %}</em></p>
-          {% endif %}
-        </div>
-        {% if formats.pkcs1 %}
-          <div class="tab-pane fade" id="inspect-private-pkcs1" role="tabpanel" aria-labelledby="inspect-private-pkcs1-tab">
-            <pre class="mb-0">{{ formats.pkcs1 }}</pre>
-          </div>
-        {% endif %}
-        {% if formats.sec1 %}
-          <div class="tab-pane fade" id="inspect-private-sec1" role="tabpanel" aria-labelledby="inspect-private-sec1-tab">
-            <pre class="mb-0">{{ formats.sec1 }}</pre>
-          </div>
-        {% endif %}
-        <div class="tab-pane fade" id="inspect-private-putty" role="tabpanel" aria-labelledby="inspect-private-putty-tab">
-          {% if formats.putty_ppk %}
-            <pre class="mb-0">{{ formats.putty_ppk }}</pre>
-          {% else %}
-            <p><em>PuTTY PPK unavailable{% if (formats.errors|default({})).putty_ppk %}: {{ (formats.errors|default({})).putty_ppk }}{% endif %}</em></p>
-          {% endif %}
-        </div>
-      {% elif formats and formats.kind == "certificate" %}
-        <div class="tab-pane fade" id="inspect-cert-pkcs8" role="tabpanel" aria-labelledby="inspect-cert-pkcs8-tab">
-          {% if formats.public_pem %}
-            <pre class="mb-0">{{ formats.public_pem }}</pre>
-          {% else %}
-            <p><em>PKCS8 unavailable{% if (formats.errors|default({})).pkcs8 %}: {{ (formats.errors|default({})).pkcs8 }}{% endif %}</em></p>
-          {% endif %}
-        </div>
-        {% if not formats.is_pqc_key and formats.is_ssh2_key %}
-          <div class="tab-pane fade" id="inspect-cert-ssh2" role="tabpanel" aria-labelledby="inspect-cert-ssh2-tab">
-            {% if formats.rfc4716 %}
-              <pre class="mb-0">{{ formats.rfc4716 }}</pre>
-            {% else %}
-              <p><em>SSH2 unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>
-            {% endif %}
-          </div>
-          <div class="tab-pane fade" id="inspect-cert-ssh2-bare" role="tabpanel" aria-labelledby="inspect-cert-ssh2-bare-tab">
-            {% if formats.openssh %}
-              <pre class="mb-0">{{ formats.openssh }}</pre>
-            {% else %}
-              <p><em>SSH2 (bare) unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>
-            {% endif %}
-          </div>
-        {% endif %}
-      {% endif %}
-    </div>
-    {% if formats and formats.kind == "certificate" %}
-      <p class="mt-2 text-muted"><em>PKCS8, SSH2, and SSH2 (bare) show the public key extracted from the inspected certificate.</em></p>
-    {% elif formats and formats.kind == "private_key" %}
-      <p class="mt-2 text-muted"><em>PuTTY (PPK) is generated from RSA private keys using OS-specific tools: Windows uses WinSCP keygen (winscp.com), Linux/Unix uses puttygen.</em></p>
-    {% endif %}
-  {% endif %}
-  <p><strong>Supported types:</strong> {{ der_types|join(', ') }}, Public Key (OpenSSH), Public Key (RFC4716), Private Key (PKCS8), Private Key (PKCS1), Private Key (SEC1), Private Key (PuTTY PPK for RSA)</p>
+    .inspect-mode-tabs {
+      border: none;
+      gap: 0.65rem;
+    }
+
+    .inspect-mode-tabs .nav-link {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.75);
+      font-weight: 700;
+      padding: 0.75rem 1.1rem;
+    }
+
+    .inspect-mode-tabs .nav-link.active {
+      background: linear-gradient(135deg, #0f766e, #1d4ed8);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 14px 28px rgba(15, 118, 110, 0.24);
+    }
+
+    .inspect-panel {
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08);
+      padding: 1.5rem;
+    }
+
+    .inspect-subtitle {
+      color: var(--muted);
+      margin-bottom: 1.2rem;
+    }
+
+    .check-scenario {
+      display: grid;
+      gap: 0.35rem;
+      margin-bottom: 1rem;
+    }
+
+    .check-top-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
+      gap: 1rem;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+
+    .check-side-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(255, 255, 255, 0.98));
+      padding: 1rem 1.1rem;
+    }
+
+    .check-side-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .check-side-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .slot-grid {
+      display: block;
+    }
+
+    .compare-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.86), rgba(255, 255, 255, 0.96));
+    }
+
+    .compare-table {
+      width: 100%;
+      min-width: 920px;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .compare-table th,
+    .compare-table td {
+      vertical-align: top;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .compare-table thead th {
+      background: rgba(15, 23, 42, 0.04);
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .compare-table tbody tr:last-child td,
+    .compare-table tbody tr:last-child th {
+      border-bottom: none;
+    }
+
+    .compare-table tbody th {
+      width: 180px;
+      background: rgba(255, 255, 255, 0.48);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .slot-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 0.95rem;
+      min-height: 100%;
+      background: #fff;
+    }
+
+    .slot-title {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .slot-hint {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .slot-card textarea {
+      min-height: 160px;
+    }
+
+    .slot-caption {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0;
+    }
+
+    .result-shell {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .compare-versus-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .compare-versus-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 0.55rem 0.9rem;
+      font-weight: 700;
+    }
+
+    .compare-versus-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #0f766e, #1d4ed8);
+    }
+
+    .result-banner {
+      border-radius: 20px;
+      padding: 1rem 1.2rem;
+      border: 1px solid transparent;
+    }
+
+    .result-banner.pass {
+      background: rgba(21, 128, 61, 0.1);
+      border-color: rgba(21, 128, 61, 0.18);
+      color: #166534;
+    }
+
+    .result-banner.warn {
+      background: rgba(180, 83, 9, 0.1);
+      border-color: rgba(180, 83, 9, 0.18);
+      color: #92400e;
+    }
+
+    .result-banner.fail {
+      background: rgba(185, 28, 28, 0.1);
+      border-color: rgba(185, 28, 28, 0.18);
+      color: #991b1b;
+    }
+
+    .result-banner.info {
+      background: rgba(29, 78, 216, 0.08);
+      border-color: rgba(29, 78, 216, 0.14);
+      color: #1d4ed8;
+    }
+
+    .result-banner h3,
+    .result-banner p,
+    .result-banner small {
+      color: inherit;
+    }
+
+    .result-banner.fail h3 {
+      color: var(--text);
+    }
+
+    .result-banner.fail p {
+      color: #991b1b;
+      font-weight: 700;
+    }
+
+    .headline-relationship-summary {
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .headline-relationship-summary .relationship-card {
+      margin-bottom: 0;
+    }
+
+    .result-banner.warn h3,
+    .result-banner.warn p,
+    .result-banner.pass h3,
+    .result-banner.pass p,
+    .result-banner.info h3,
+    .result-banner.info p {
+      color: inherit;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.9rem;
+    }
+
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0.9rem 1rem;
+      background: #fff;
+    }
+
+    .summary-card .label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+
+    .summary-card .value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .input-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.9rem;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .relationship-stage {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .entity-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.9rem;
+    }
+
+    .entity-card {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1rem;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      min-height: 140px;
+    }
+
+    .entity-kind {
+      display: inline-block;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+    }
+
+    .entity-title {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      font-size: 1.05rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .entity-subtitle {
+      color: var(--muted);
+      font-size: 0.92rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .relationship-list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .relationship-card {
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 1rem 1.1rem;
+    }
+
+    .relationship-card.pass {
+      border-color: rgba(21, 128, 61, 0.22);
+      background: linear-gradient(180deg, rgba(21, 128, 61, 0.05), #fff);
+    }
+
+    .relationship-card.fail {
+      border-color: rgba(185, 28, 28, 0.22);
+      background: linear-gradient(180deg, rgba(185, 28, 28, 0.05), #fff);
+    }
+
+    .relationship-card.warn {
+      border-color: rgba(180, 83, 9, 0.22);
+      background: linear-gradient(180deg, rgba(180, 83, 9, 0.05), #fff);
+    }
+
+    .relationship-flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .relationship-node {
+      border-radius: 999px;
+      padding: 0.45rem 0.8rem;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      font-weight: 700;
+    }
+
+    .relationship-arrow-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .relationship-arrow-icon {
+      width: 56px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .relationship-arrow-icon svg {
+      width: 56px;
+      height: 24px;
+      overflow: visible;
+    }
+
+    .relationship-label {
+      font-weight: 700;
+      margin-bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-height: 28px;
+    }
+
+    .relationship-label-text {
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+    }
+
+    .relationship-status-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 22px;
+    }
+
+    .relationship-status-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .relationship-card.pass .relationship-status-icon {
+      background: rgba(21, 128, 61, 0.12);
+      color: #166534;
+    }
+
+    .relationship-card.fail .relationship-status-icon {
+      background: rgba(185, 28, 28, 0.12);
+      color: #991b1b;
+    }
+
+    .relationship-card.warn .relationship-status-icon {
+      background: rgba(180, 83, 9, 0.14);
+      color: #92400e;
+    }
+
+    .relationship-card.info .relationship-status-icon {
+      background: rgba(29, 78, 216, 0.1);
+      color: #1d4ed8;
+    }
+
+    .relationship-meta {
+      margin-top: 0.35rem;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .relationship-card pre {
+      margin-top: 0.65rem;
+      font-size: 0.82rem;
+      max-height: 140px;
+      overflow: auto;
+    }
+
+    .sr-only-visual {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    .input-summary-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1rem;
+      background: rgba(248, 250, 252, 0.9);
+    }
+
+    .input-summary-card.pass {
+      border-color: rgba(21, 128, 61, 0.2);
+    }
+
+    .input-summary-card.fail {
+      border-color: rgba(185, 28, 28, 0.22);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.18rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.65rem;
+    }
+
+    .status-pass {
+      background: rgba(21, 128, 61, 0.12);
+      color: #166534;
+    }
+
+    .status-warn {
+      background: rgba(180, 83, 9, 0.14);
+      color: #92400e;
+    }
+
+    .status-fail {
+      background: rgba(185, 28, 28, 0.12);
+      color: #991b1b;
+    }
+
+    .status-info {
+      background: rgba(29, 78, 216, 0.1);
+      color: #1d4ed8;
+    }
+
+    .category-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #fff;
+      min-height: 100%;
+    }
+
+    .category-card-header {
+      background: rgba(248, 250, 252, 0.85);
+      border-bottom: 1px solid var(--border);
+      padding: 0.9rem 1rem;
+      font-weight: 700;
+    }
+
+    .category-item {
+      padding: 1rem;
+    }
+
+    .category-item + .category-item {
+      border-top: 1px solid var(--border);
+    }
+
+    .category-item-title {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.45rem;
+      font-weight: 700;
+    }
+
+    .category-item pre {
+      margin-bottom: 0;
+    }
+
+    @media (max-width: 991.98px) {
+      .check-top-grid,
+      .analysis-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .inspect-result-tabs .nav-link {
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 700;
+      margin-right: 0.55rem;
+      margin-bottom: 0.55rem;
+    }
+
+    .inspect-result-tabs .nav-link.active {
+      background: #0f172a;
+      border-color: #0f172a;
+      color: #fff;
+    }
+
+    body.theme-color-midnight .inspect-hero {
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(56, 189, 248, 0.08));
+      border-color: rgba(56, 189, 248, 0.18);
+    }
+
+    body.theme-color-midnight .inspect-mode-tabs .nav-link {
+      background: rgba(15, 23, 42, 0.82);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .inspect-mode-tabs .nav-link.active {
+      background: linear-gradient(135deg, #0f766e, #0369a1);
+      color: #ffffff;
+    }
+
+    body.theme-color-midnight .inspect-panel,
+    body.theme-color-midnight .check-side-card,
+    body.theme-color-midnight .compare-table-wrap,
+    body.theme-color-midnight .slot-card,
+    body.theme-color-midnight .summary-card,
+    body.theme-color-midnight .input-summary-card,
+    body.theme-color-midnight .entity-card,
+    body.theme-color-midnight .relationship-card,
+    body.theme-color-midnight .category-card {
+      background: rgba(15, 23, 42, 0.94);
+      border-color: var(--border);
+      box-shadow: 0 18px 36px rgba(2, 6, 23, 0.45);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .compare-table thead th {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+    }
+
+    body.theme-color-midnight .compare-table tbody th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .compare-table th,
+    body.theme-color-midnight .compare-table td,
+    body.theme-color-midnight .category-item,
+    body.theme-color-midnight .category-card-header,
+    body.theme-color-midnight .relationship-card,
+    body.theme-color-midnight .entity-card,
+    body.theme-color-midnight .input-summary-card,
+    body.theme-color-midnight .summary-card {
+      border-color: var(--border);
+    }
+
+    body.theme-color-midnight .category-card-header {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .compare-versus-chip,
+    body.theme-color-midnight .relationship-node {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    body.theme-color-midnight .result-banner.pass {
+      background: rgba(22, 101, 52, 0.25);
+      border-color: rgba(74, 222, 128, 0.25);
+      color: #bbf7d0;
+    }
+
+    body.theme-color-midnight .result-banner.warn {
+      background: rgba(146, 64, 14, 0.28);
+      border-color: rgba(251, 191, 36, 0.22);
+      color: #fde68a;
+    }
+
+    body.theme-color-midnight .result-banner.fail {
+      background: rgba(127, 29, 29, 0.3);
+      border-color: rgba(248, 113, 113, 0.25);
+      color: #fecaca;
+    }
+
+    body.theme-color-midnight .result-banner.info {
+      background: rgba(30, 64, 175, 0.24);
+      border-color: rgba(125, 211, 252, 0.22);
+      color: #bae6fd;
+    }
+
+    body.theme-color-midnight .result-banner.fail h3 {
+      color: #ffffff;
+    }
+
+    body.theme-color-midnight .result-banner.fail p {
+      color: #fecaca;
+    }
+
+    body.theme-color-midnight .relationship-card.pass {
+      border-color: rgba(74, 222, 128, 0.24);
+      background: linear-gradient(180deg, rgba(22, 101, 52, 0.18), rgba(15, 23, 42, 0.96));
+    }
+
+    body.theme-color-midnight .relationship-card.fail {
+      border-color: rgba(248, 113, 113, 0.24);
+      background: linear-gradient(180deg, rgba(127, 29, 29, 0.18), rgba(15, 23, 42, 0.96));
+    }
+
+    body.theme-color-midnight .relationship-card.warn {
+      border-color: rgba(251, 191, 36, 0.22);
+      background: linear-gradient(180deg, rgba(146, 64, 14, 0.18), rgba(15, 23, 42, 0.96));
+    }
+
+    body.theme-color-midnight .summary-card .value.text-success {
+      color: #86efac !important;
+    }
+
+    body.theme-color-midnight .summary-card .value.text-warning {
+      color: #fde68a !important;
+    }
+
+    body.theme-color-midnight .summary-card .value.text-danger {
+      color: #fca5a5 !important;
+    }
+
+    body.theme-color-midnight .summary-card .value.text-primary {
+      color: #93c5fd !important;
+    }
+  </style>
 {% endblock %}
+{% block content %}
+  <div class="inspect-shell">
+    <div class="inspect-hero">
+      <h1 class="mb-2">Inspect Data</h1>
+      <p>Use <strong>Inspect</strong> for raw X.509 parsing and format conversions. Use <strong>Check</strong> for relationship analysis between a CSR, certificate, CA, and public or private key.</p>
+    </div>
 
+    <ul class="nav inspect-mode-tabs" id="inspectModeTabs" role="tablist">
+      <li class="nav-item">
+        <a class="nav-link{% if active_tab != 'check' %} active{% endif %}" id="inspect-mode-tab" data-toggle="tab" href="#inspect-mode" role="tab" aria-controls="inspect-mode" aria-selected="{% if active_tab != 'check' %}true{% else %}false{% endif %}">Inspect</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link{% if active_tab == 'check' %} active{% endif %}" id="check-mode-tab" data-toggle="tab" href="#check-mode" role="tab" aria-controls="check-mode" aria-selected="{% if active_tab == 'check' %}true{% else %}false{% endif %}">Check</a>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+      <div class="tab-pane fade{% if active_tab != 'check' %} show active{% endif %}" id="inspect-mode" role="tabpanel" aria-labelledby="inspect-mode-tab">
+        <div class="inspect-panel">
+          <h2 class="h4">Raw X.509 Inspect</h2>
+          <p class="inspect-subtitle">Paste PEM or Base64 DER and keep the existing OpenSSL-style inspection flow.</p>
+          <form method="post">
+            <input type="hidden" name="active_tab" value="inspect">
+            <div class="form-group">
+              <label for="inspect_data">PEM block or Base64-encoded DER</label>
+              <textarea id="inspect_data" name="inspect_data" class="form-control" rows="11">{{ request.form.get('inspect_data', '') }}</textarea>
+            </div>
+            <div class="form-group form-check">
+              <input class="form-check-input" type="checkbox" id="show_formats" name="show_formats" {% if include_formats %}checked{% endif %}>
+              <label class="form-check-label" for="show_formats">Show converted key formats where available</label>
+            </div>
+            <div class="form-group mb-0">
+              <button type="submit" class="btn btn-primary">Inspect</button>
+              <button type="button" class="btn btn-outline-secondary ml-2" onclick="document.getElementById('inspect_data').value='';">Clear</button>
+            </div>
+          </form>
+
+          {% if active_tab != 'check' %}
+            <div class="result-shell">
+              {% if result %}
+                <ul class="nav inspect-result-tabs" id="inspectTabs" role="tablist">
+                  <li class="nav-item">
+                    <a class="nav-link active" id="inspect-openssl-tab" data-toggle="tab" href="#inspect-openssl" role="tab" aria-controls="inspect-openssl" aria-selected="true">OpenSSL</a>
+                  </li>
+                  {% if formats and formats.kind == "public_key" %}
+                    <li class="nav-item"><a class="nav-link" id="inspect-public-pkcs8-tab" data-toggle="tab" href="#inspect-public-pkcs8" role="tab" aria-controls="inspect-public-pkcs8" aria-selected="false">PKCS8</a></li>
+                    <li class="nav-item"><a class="nav-link" id="inspect-public-ssh2-tab" data-toggle="tab" href="#inspect-public-ssh2" role="tab" aria-controls="inspect-public-ssh2" aria-selected="false">SSH2</a></li>
+                    <li class="nav-item"><a class="nav-link" id="inspect-public-ssh2-bare-tab" data-toggle="tab" href="#inspect-public-ssh2-bare" role="tab" aria-controls="inspect-public-ssh2-bare" aria-selected="false">SSH2 bare</a></li>
+                  {% elif formats and formats.kind == "private_key" %}
+                    <li class="nav-item"><a class="nav-link" id="inspect-private-pkcs8-tab" data-toggle="tab" href="#inspect-private-pkcs8" role="tab" aria-controls="inspect-private-pkcs8" aria-selected="false">PKCS8</a></li>
+                    {% if formats.pkcs1 %}<li class="nav-item"><a class="nav-link" id="inspect-private-pkcs1-tab" data-toggle="tab" href="#inspect-private-pkcs1" role="tab" aria-controls="inspect-private-pkcs1" aria-selected="false">PKCS1</a></li>{% endif %}
+                    {% if formats.sec1 %}<li class="nav-item"><a class="nav-link" id="inspect-private-sec1-tab" data-toggle="tab" href="#inspect-private-sec1" role="tab" aria-controls="inspect-private-sec1" aria-selected="false">SEC1</a></li>{% endif %}
+                    <li class="nav-item"><a class="nav-link" id="inspect-private-putty-tab" data-toggle="tab" href="#inspect-private-putty" role="tab" aria-controls="inspect-private-putty" aria-selected="false">PuTTY PPK</a></li>
+                  {% elif formats and formats.kind == "certificate" %}
+                    <li class="nav-item"><a class="nav-link" id="inspect-cert-pkcs8-tab" data-toggle="tab" href="#inspect-cert-pkcs8" role="tab" aria-controls="inspect-cert-pkcs8" aria-selected="false">Public key PEM</a></li>
+                    {% if not formats.is_pqc_key and formats.is_ssh2_key %}
+                      <li class="nav-item"><a class="nav-link" id="inspect-cert-ssh2-tab" data-toggle="tab" href="#inspect-cert-ssh2" role="tab" aria-controls="inspect-cert-ssh2" aria-selected="false">SSH2</a></li>
+                      <li class="nav-item"><a class="nav-link" id="inspect-cert-ssh2-bare-tab" data-toggle="tab" href="#inspect-cert-ssh2-bare" role="tab" aria-controls="inspect-cert-ssh2-bare" aria-selected="false">SSH2 bare</a></li>
+                    {% endif %}
+                  {% endif %}
+                </ul>
+                <div class="tab-content">
+                  <div class="tab-pane fade show active" id="inspect-openssl" role="tabpanel" aria-labelledby="inspect-openssl-tab">
+                    <pre class="mb-0">{{ result }}</pre>
+                  </div>
+                  {% if formats and formats.kind == "public_key" %}
+                    <div class="tab-pane fade" id="inspect-public-pkcs8" role="tabpanel" aria-labelledby="inspect-public-pkcs8-tab">
+                      {% if formats.pkcs8 %}<pre class="mb-0">{{ formats.pkcs8 }}</pre>{% else %}<p class="mb-0"><em>PKCS8 unavailable{% if (formats.errors|default({})).pkcs8 %}: {{ (formats.errors|default({})).pkcs8 }}{% endif %}</em></p>{% endif %}
+                    </div>
+                    <div class="tab-pane fade" id="inspect-public-ssh2" role="tabpanel" aria-labelledby="inspect-public-ssh2-tab">
+                      {% if formats.rfc4716 %}<pre class="mb-0">{{ formats.rfc4716 }}</pre>{% else %}<p class="mb-0"><em>SSH2 unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>{% endif %}
+                    </div>
+                    <div class="tab-pane fade" id="inspect-public-ssh2-bare" role="tabpanel" aria-labelledby="inspect-public-ssh2-bare-tab">
+                      {% if formats.openssh %}<pre class="mb-0">{{ formats.openssh }}</pre>{% else %}<p class="mb-0"><em>SSH2 bare unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>{% endif %}
+                    </div>
+                  {% elif formats and formats.kind == "private_key" %}
+                    <div class="tab-pane fade" id="inspect-private-pkcs8" role="tabpanel" aria-labelledby="inspect-private-pkcs8-tab">
+                      {% if formats.pkcs8 %}<pre class="mb-0">{{ formats.pkcs8 }}</pre>{% else %}<p class="mb-0"><em>PKCS8 unavailable{% if (formats.errors|default({})).pkcs8 %}: {{ (formats.errors|default({})).pkcs8 }}{% endif %}</em></p>{% endif %}
+                    </div>
+                    {% if formats.pkcs1 %}<div class="tab-pane fade" id="inspect-private-pkcs1" role="tabpanel" aria-labelledby="inspect-private-pkcs1-tab"><pre class="mb-0">{{ formats.pkcs1 }}</pre></div>{% endif %}
+                    {% if formats.sec1 %}<div class="tab-pane fade" id="inspect-private-sec1" role="tabpanel" aria-labelledby="inspect-private-sec1-tab"><pre class="mb-0">{{ formats.sec1 }}</pre></div>{% endif %}
+                    <div class="tab-pane fade" id="inspect-private-putty" role="tabpanel" aria-labelledby="inspect-private-putty-tab">
+                      {% if formats.putty_ppk %}<pre class="mb-0">{{ formats.putty_ppk }}</pre>{% else %}<p class="mb-0"><em>PuTTY PPK unavailable{% if (formats.errors|default({})).putty_ppk %}: {{ (formats.errors|default({})).putty_ppk }}{% endif %}</em></p>{% endif %}
+                    </div>
+                  {% elif formats and formats.kind == "certificate" %}
+                    <div class="tab-pane fade" id="inspect-cert-pkcs8" role="tabpanel" aria-labelledby="inspect-cert-pkcs8-tab">
+                      {% if formats.public_pem %}<pre class="mb-0">{{ formats.public_pem }}</pre>{% else %}<p class="mb-0"><em>Public key PEM unavailable{% if (formats.errors|default({})).pkcs8 %}: {{ (formats.errors|default({})).pkcs8 }}{% endif %}</em></p>{% endif %}
+                    </div>
+                    {% if not formats.is_pqc_key and formats.is_ssh2_key %}
+                      <div class="tab-pane fade" id="inspect-cert-ssh2" role="tabpanel" aria-labelledby="inspect-cert-ssh2-tab">
+                        {% if formats.rfc4716 %}<pre class="mb-0">{{ formats.rfc4716 }}</pre>{% else %}<p class="mb-0"><em>SSH2 unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>{% endif %}
+                      </div>
+                      <div class="tab-pane fade" id="inspect-cert-ssh2-bare" role="tabpanel" aria-labelledby="inspect-cert-ssh2-bare-tab">
+                        {% if formats.openssh %}<pre class="mb-0">{{ formats.openssh }}</pre>{% else %}<p class="mb-0"><em>SSH2 bare unavailable{% if (formats.errors|default({})).openssh %}: {{ (formats.errors|default({})).openssh }}{% endif %}</em></p>{% endif %}
+                      </div>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              {% else %}
+                <p class="mb-0 text-muted"><em>No inspect result yet.</em></p>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="tab-pane fade{% if active_tab == 'check' %} show active{% endif %}" id="check-mode" role="tabpanel" aria-labelledby="check-mode-tab">
+        <div class="inspect-panel">
+          <h2 class="h4">Relationship Check</h2>
+          <p class="inspect-subtitle">Paste or upload files and let the app infer the relationship automatically.</p>
+          <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="active_tab" value="check">
+            <input type="hidden" name="check_mode" value="auto">
+            <div class="check-top-grid">
+              <div class="check-side-card">
+                <h3>Input</h3>
+                <p class="text-muted">Place related files side by side in the compare table below. Upload wins over pasted text in the same column.</p>
+                <div class="compare-versus-chip"><span class="compare-versus-dot"></span><span>Compare related files side by side</span></div>
+              </div>
+              <div class="check-side-card">
+                <h3>Auto Detect</h3>
+                <p class="text-muted mb-0">The app decides whether the files are `CA vs Certificate`, `Certificate vs Key`, `CSR vs Certificate`, or a supported 3-file combination.</p>
+              </div>
+            </div>
+
+            <div class="slot-grid">
+              <div class="compare-table-wrap">
+                <table class="compare-table">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th id="check-primary-title">File 1</th>
+                      <th id="check-secondary-title">File 2</th>
+                      <th id="check-tertiary-title-header" {% if not request.form.get('check_tertiary_text', '') %}style="display:none;"{% endif %}>File 3</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Use for</th>
+                      <td>
+                        <div class="slot-card border-0 p-0 bg-transparent">
+                          <div class="slot-title" id="check-primary-title-body">File 1</div>
+                          <div class="slot-hint mb-0" id="check-primary-hint">Paste data or upload a file. In auto mode the app will detect whether it is a CSR, certificate, CA, or key.</div>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="slot-card border-0 p-0 bg-transparent">
+                          <div class="slot-title" id="check-secondary-title-body">File 2</div>
+                          <div class="slot-hint mb-0" id="check-secondary-hint">Add the second related object here.</div>
+                        </div>
+                      </td>
+                      <td id="check-tertiary-purpose-cell" {% if not request.form.get('check_tertiary_text', '') %}style="display:none;"{% endif %}>
+                        <div class="slot-card border-0 p-0 bg-transparent">
+                          <div class="slot-title" id="check-tertiary-title">File 3</div>
+                          <div class="slot-hint mb-0" id="check-tertiary-hint">Add a third file when the relationship needs it, such as CSR + certificate + CA.</div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Paste text</th>
+                      <td>
+                        <div class="slot-card">
+                          <textarea class="form-control" id="check_primary_text" name="check_primary_text">{{ request.form.get('check_primary_text', '') }}</textarea>
+                          <p class="slot-caption">Paste PEM, DER Base64, or key text.</p>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="slot-card">
+                          <textarea class="form-control" id="check_secondary_text" name="check_secondary_text">{{ request.form.get('check_secondary_text', '') }}</textarea>
+                          <p class="slot-caption">Use this column for the related object.</p>
+                        </div>
+                      </td>
+                      <td id="check-tertiary-text-cell" {% if not request.form.get('check_tertiary_text', '') %}style="display:none;"{% endif %}>
+                        <div class="slot-card">
+                          <textarea class="form-control" id="check_tertiary_text" name="check_tertiary_text">{{ request.form.get('check_tertiary_text', '') }}</textarea>
+                          <p class="slot-caption">Only needed for some 3-file relationships.</p>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Upload file</th>
+                      <td>
+                        <div class="slot-card">
+                          <input class="form-control-file" type="file" id="check_primary_file" name="check_primary_file">
+                          <p class="slot-caption">Local file for File 1.</p>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="slot-card">
+                          <input class="form-control-file" type="file" id="check_secondary_file" name="check_secondary_file">
+                          <p class="slot-caption">Local file for File 2.</p>
+                        </div>
+                      </td>
+                      <td id="check-tertiary-upload-cell" {% if not request.form.get('check_tertiary_text', '') %}style="display:none;"{% endif %}>
+                        <div class="slot-card">
+                          <input class="form-control-file" type="file" id="check_tertiary_file" name="check_tertiary_file">
+                          <p class="slot-caption">Optional extra file.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="form-group mt-3 mb-0">
+              <button type="button" class="btn btn-outline-secondary mr-2" id="add-third-file-btn">Add Third File</button>
+              <button type="submit" class="btn btn-primary">Run Check</button>
+            </div>
+          </form>
+
+          {% if active_tab == 'check' %}
+            <div class="result-shell">
+              {% if check_report %}
+                {% set headline_relationship = (check_report.relationships | first) %}
+                {% set headline_source = (check_report.entities | selectattr('id', 'equalto', headline_relationship.source) | list | first) if headline_relationship else None %}
+                {% set headline_target = (check_report.entities | selectattr('id', 'equalto', headline_relationship.target) | list | first) if headline_relationship else None %}
+                <div class="result-banner {{ check_report.headline_status }}">
+                  <div class="d-flex flex-wrap justify-content-between align-items-start">
+                    <div class="mr-3">
+                      <h3 class="h5 mb-1">{{ check_report.title }}</h3>
+                      <p class="mb-0">{{ check_report.headline }}</p>
+                    </div>
+                    <small class="text-muted mt-1">{{ check_report.description }}</small>
+                  </div>
+                  {% if headline_relationship %}
+                    <div class="headline-relationship-summary">
+                      {% set rel_label = headline_relationship.label|lower %}
+                      {% set positive = headline_relationship.status == 'pass' %}
+                      {% set negative = headline_relationship.status == 'fail' %}
+                      <div class="relationship-card {{ headline_relationship.status }}">
+                        <div class="relationship-flow">
+                          <span class="relationship-node">{{ headline_source.title if headline_source else headline_relationship.source }}</span>
+                          <span class="relationship-arrow-wrap" aria-hidden="true">
+                            <span class="relationship-arrow-icon">
+                              {% if 'issued' in rel_label %}
+                                <svg viewBox="0 0 56 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M3 12H39" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                  <path d="M33 6L39 12L33 18" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                  <circle cx="46" cy="12" r="8" fill="{% if positive %}#dcfce7{% elif negative %}#fee2e2{% else %}#fef3c7{% endif %}" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="1.5"/>
+                                  {% if positive %}
+                                    <path d="M42.5 12.3L45.3 15L49.8 9.8" stroke="#15803d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                  {% elif negative %}
+                                    <path d="M43.5 9.5L48.5 14.5M48.5 9.5L43.5 14.5" stroke="#b91c1c" stroke-width="1.8" stroke-linecap="round"/>
+                                  {% else %}
+                                    <path d="M46 8.5V12.5" stroke="#b45309" stroke-width="1.8" stroke-linecap="round"/>
+                                    <circle cx="46" cy="15.8" r="1" fill="#b45309"/>
+                                  {% endif %}
+                                </svg>
+                              {% elif 'key' in rel_label or 'made' in rel_label %}
+                                <svg viewBox="0 0 56 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M4 12H26" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                  <circle cx="34" cy="12" r="5.5" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.2"/>
+                                  <path d="M39.5 12H51.5" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                  <path d="M46 12V8.8M49.2 12V10" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.2" stroke-linecap="round"/>
+                                  {% if negative %}
+                                    <path d="M23 6L31 18M31 6L23 18" stroke="#b91c1c" stroke-width="2" stroke-linecap="round"/>
+                                  {% elif not positive %}
+                                    <circle cx="23" cy="12" r="2" fill="#b45309"/>
+                                  {% endif %}
+                                </svg>
+                              {% else %}
+                                <svg viewBox="0 0 56 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M4 12H47" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                  <path d="M40 6L47 12L40 18" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                  {% if negative %}
+                                    <path d="M22 7L28 17M28 7L22 17" stroke="#b91c1c" stroke-width="2" stroke-linecap="round"/>
+                                  {% endif %}
+                                </svg>
+                              {% endif %}
+                            </span>
+                          </span>
+                          <span class="relationship-node">{{ headline_target.title if headline_target else headline_relationship.target }}</span>
+                          <span class="sr-only-visual">{{ headline_relationship.status }}</span>
+                        </div>
+                        <div class="relationship-label">
+                          <span class="relationship-status-icon">
+                            {% if headline_relationship.status == 'pass' %}
+                              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 8.3L6.3 11.5L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                              </svg>
+                            {% elif headline_relationship.status == 'fail' %}
+                              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                              </svg>
+                            {% else %}
+                              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 4.2V8.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <circle cx="8" cy="11.8" r="1" fill="currentColor"/>
+                              </svg>
+                            {% endif %}
+                          </span>
+                          <span class="relationship-label-text">
+                            {% if headline_relationship.status == 'pass' %}
+                              OK
+                            {% elif headline_relationship.status == 'fail' %}
+                              NO MATCH
+                            {% else %}
+                              REVIEW
+                            {% endif %}
+                          </span>
+                        </div>
+                        <div class="relationship-meta">{{ headline_relationship.label }}</div>
+                        {% if headline_relationship.details and headline_relationship.status != 'pass' %}<pre>{{ headline_relationship.details }}</pre>{% endif %}
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div class="summary-grid">
+                  <div class="summary-card"><span class="label">Pass</span><span class="value text-success">{{ check_report.counts.pass }}</span></div>
+                  <div class="summary-card"><span class="label">Warn</span><span class="value text-warning">{{ check_report.counts.warn }}</span></div>
+                  <div class="summary-card"><span class="label">Fail</span><span class="value text-danger">{{ check_report.counts.fail }}</span></div>
+                  <div class="summary-card"><span class="label">Info</span><span class="value text-primary">{{ check_report.counts.info }}</span></div>
+                </div>
+
+                {% set analysis_inputs_checks = check_report.categories.get('Analysis: Inputs') or check_report.categories.get('Inputs') %}
+                {% set analysis_relationship_checks = check_report.categories.get('Analysis: Relationship') or check_report.categories.get('Relationship') %}
+                {% set analysis_cert_checks = check_report.categories.get('Analysis: Certificate details') or check_report.categories.get('Certificate details') %}
+
+                <div class="analysis-grid">
+                  <div class="category-card">
+                    <div class="category-card-header">Analysis: Inputs</div>
+                    <div class="category-card-body">
+                      {% if analysis_inputs_checks %}
+                        {% for check in analysis_inputs_checks %}
+                          <div class="category-item">
+                            <div class="category-item-title">
+                              <span class="status-pill status-{{ check.status }}">{{ check.status }}</span>
+                              <span>{{ check.label }}</span>
+                            </div>
+                            {% if check.details %}<pre>{{ check.details }}</pre>{% endif %}
+                          </div>
+                        {% endfor %}
+                      {% else %}
+                        <div class="category-item"><span class="text-muted">No input analysis for this check.</span></div>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <div class="category-card">
+                    <div class="category-card-header">Analysis: Relationship</div>
+                    <div class="category-card-body">
+                      {% if analysis_relationship_checks %}
+                        {% for check in analysis_relationship_checks %}
+                          <div class="category-item">
+                            <div class="category-item-title">
+                              <span class="status-pill status-{{ check.status }}">{{ check.status }}</span>
+                              <span>{{ check.label }}</span>
+                            </div>
+                            {% if check.details %}<pre>{{ check.details }}</pre>{% endif %}
+                          </div>
+                        {% endfor %}
+                      {% else %}
+                        <div class="category-item"><span class="text-muted">No relationship analysis for this check.</span></div>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <div class="category-card">
+                    <div class="category-card-header">Analysis: Certificate details</div>
+                    <div class="category-card-body">
+                      {% if analysis_cert_checks %}
+                        {% for check in analysis_cert_checks %}
+                          <div class="category-item">
+                            <div class="category-item-title">
+                              <span class="status-pill status-{{ check.status }}">{{ check.status }}</span>
+                              <span>{{ check.label }}</span>
+                            </div>
+                            {% if check.details %}<pre>{{ check.details }}</pre>{% endif %}
+                          </div>
+                        {% endfor %}
+                      {% else %}
+                        <div class="category-item"><span class="text-muted">No certificate detail analysis for this check.</span></div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                {% if check_report.entities or check_report.relationships %}
+                  <div class="relationship-stage">
+                    {% if check_report.entities %}
+                      <div class="entity-grid">
+                        {% for entity in check_report.entities %}
+                          <div class="entity-card">
+                            <div class="entity-kind">{{ entity.kind|replace('_', ' ') }}</div>
+                            <div class="entity-title">{{ entity.title }}</div>
+                            {% if entity.subtitle %}
+                              <div class="entity-subtitle">{{ entity.subtitle }}</div>
+                            {% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+
+                    {% if check_report.relationships %}
+                      <div class="relationship-list">
+                        {% for relationship in check_report.relationships %}
+                          {% if not loop.first %}
+                          {% set source = (check_report.entities | selectattr('id', 'equalto', relationship.source) | list | first) %}
+                          {% set target = (check_report.entities | selectattr('id', 'equalto', relationship.target) | list | first) %}
+                          {% set rel_label = relationship.label|lower %}
+                          <div class="relationship-card {{ relationship.status }}">
+                            {% set positive = relationship.status == 'pass' %}
+                            {% set negative = relationship.status == 'fail' %}
+                            <div class="relationship-flow">
+                              <span class="relationship-node">{{ source.title if source else relationship.source }}</span>
+                              <span class="relationship-arrow-wrap" aria-hidden="true">
+                                <span class="relationship-arrow-icon">
+                                  {% if 'issued' in rel_label %}
+                                    <svg viewBox="0 0 56 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M3 12H39" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                      <path d="M33 6L39 12L33 18" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                      <circle cx="46" cy="12" r="8" fill="{% if positive %}#dcfce7{% elif negative %}#fee2e2{% else %}#fef3c7{% endif %}" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="1.5"/>
+                                      {% if positive %}
+                                        <path d="M42.5 12.3L45.3 15L49.8 9.8" stroke="#15803d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                      {% elif negative %}
+                                        <path d="M43.5 9.5L48.5 14.5M48.5 9.5L43.5 14.5" stroke="#b91c1c" stroke-width="1.8" stroke-linecap="round"/>
+                                      {% else %}
+                                        <path d="M46 8.5V12.5" stroke="#b45309" stroke-width="1.8" stroke-linecap="round"/>
+                                        <circle cx="46" cy="15.8" r="1" fill="#b45309"/>
+                                      {% endif %}
+                                    </svg>
+                                  {% elif 'key' in rel_label or 'made' in rel_label %}
+                                    <svg viewBox="0 0 56 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M4 12H26" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                      <circle cx="34" cy="12" r="5.5" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.2"/>
+                                      <path d="M39.5 12H51.5" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                      <path d="M46 12V8.8M49.2 12V10" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.2" stroke-linecap="round"/>
+                                      {% if negative %}
+                                        <path d="M23 6L31 18M31 6L23 18" stroke="#b91c1c" stroke-width="2" stroke-linecap="round"/>
+                                      {% elif not positive %}
+                                        <circle cx="23" cy="12" r="2" fill="#b45309"/>
+                                      {% endif %}
+                                    </svg>
+                                  {% else %}
+                                    <svg viewBox="0 0 56 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M4 12H47" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round"/>
+                                      <path d="M40 6L47 12L40 18" stroke="{% if positive %}#15803d{% elif negative %}#b91c1c{% else %}#b45309{% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                      {% if negative %}
+                                        <path d="M22 7L28 17M28 7L22 17" stroke="#b91c1c" stroke-width="2" stroke-linecap="round"/>
+                                      {% endif %}
+                                    </svg>
+                                  {% endif %}
+                                </span>
+                              </span>
+                              <span class="relationship-node">{{ target.title if target else relationship.target }}</span>
+                              <span class="sr-only-visual">{{ relationship.status }}</span>
+                            </div>
+                            <div class="relationship-label">
+                              <span class="relationship-status-icon">
+                                {% if relationship.status == 'pass' %}
+                                  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 8.3L6.3 11.5L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                  </svg>
+                                {% elif relationship.status == 'fail' %}
+                                  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                  </svg>
+                                {% else %}
+                                  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 4.2V8.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                    <circle cx="8" cy="11.8" r="1" fill="currentColor"/>
+                                  </svg>
+                                {% endif %}
+                              </span>
+                              <span class="relationship-label-text">
+                                {% if relationship.status == 'pass' %}
+                                  OK
+                                {% elif relationship.status == 'fail' %}
+                                  NO MATCH
+                                {% else %}
+                                  REVIEW
+                                {% endif %}
+                              </span>
+                            </div>
+                            <div class="relationship-meta">{{ relationship.label }}</div>
+                            {% if relationship.details and relationship.status != 'pass' %}<pre>{{ relationship.details }}</pre>{% endif %}
+                          </div>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                {% endif %}
+
+                {% if check_report.inputs %}
+                  <div class="input-summary-grid">
+                    {% for item in check_report.inputs %}
+                      <div class="input-summary-card {{ item.status }}">
+                        <span class="status-pill status-{{ item.status }}">{{ item.status }}</span>
+                        <div class="font-weight-bold">{{ item.expected_label }}</div>
+                        <div class="text-muted mb-2">{{ item.detected_label }}</div>
+                        {% if item.details %}<pre>{{ item.details }}</pre>{% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                {% for category, checks in check_report.categories.items() %}
+                  {% if category not in ['Inputs', 'Relationship', 'Certificate details', 'Analysis: Inputs', 'Analysis: Relationship', 'Analysis: Certificate details'] %}
+                  <div class="category-card">
+                    <div class="category-card-header">{{ category }}</div>
+                    <div class="category-card-body">
+                      {% for check in checks %}
+                        <div class="category-item">
+                          <div class="category-item-title">
+                            <span class="status-pill status-{{ check.status }}">{{ check.status }}</span>
+                            <span>{{ check.label }}</span>
+                          </div>
+                          {% if check.details %}<pre>{{ check.details }}</pre>{% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                <p class="mb-0 text-muted"><em>No comparison result yet.</em></p>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <p class="mb-0"><strong>Supported raw inspect types:</strong> {{ der_types|join(', ') }}, Public Key (OpenSSH), Public Key (RFC4716), Private Key (PKCS8), Private Key (PKCS1), Private Key (SEC1), Private Key (PuTTY PPK for RSA)</p>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script>
+    (function () {
+      const tertiaryHeader = document.getElementById('check-tertiary-title-header');
+      const tertiaryPurpose = document.getElementById('check-tertiary-purpose-cell');
+      const tertiaryTextCell = document.getElementById('check-tertiary-text-cell');
+      const tertiaryUploadCell = document.getElementById('check-tertiary-upload-cell');
+      if (!tertiaryHeader || !tertiaryPurpose || !tertiaryTextCell || !tertiaryUploadCell) return;
+
+      const addThirdFileBtn = document.getElementById('add-third-file-btn');
+      if (addThirdFileBtn) {
+        addThirdFileBtn.addEventListener('click', function () {
+          tertiaryHeader.style.display = '';
+          tertiaryPurpose.style.display = '';
+          tertiaryTextCell.style.display = '';
+          tertiaryUploadCell.style.display = '';
+        });
+      }
+    })();
+  </script>
+{% endblock %}

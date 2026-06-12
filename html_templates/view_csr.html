@@ -7,8 +7,9 @@
   <div class="row">
     <div class="col-md-6">
       <p><strong>Name:</strong> {{ csr.name }}</p>
-      <p><strong>Key:</strong> {{ key.name if key else "N/A" }}</p>
-      <p><strong>Template:</strong> {{ profile.template_name if profile else "N/A" }}</p>
+      <p><strong>Source:</strong> {{ csr.source or "generated" }}</p>
+      <p><strong>Key:</strong> {{ key_display_name }}</p>
+      <p><strong>Template:</strong> {{ profile_display_name }}</p>
       {% if profile %}
         {% if profile_content %}
           <h4>Template Value</h4>

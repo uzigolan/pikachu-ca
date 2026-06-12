@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block content %}
+  <h1 class="mb-4">Import CSR</h1>
+  <form method="POST" enctype="multipart/form-data" class="mb-4">
+    <div class="form-group">
+      <label for="csr_name">CSR Name</label>
+      <input type="text" name="csr_name" id="csr_name" class="form-control" placeholder="Optional. If blank, derive from CSR subject or filename.">
+    </div>
+    <div class="form-group">
+      <label for="external_key_name">Key Label</label>
+      <input type="text" name="external_key_name" id="external_key_name" class="form-control" placeholder="Optional. Example: Customer HSM key">
+      <small class="form-text text-muted">This key does not need to exist in the DB.</small>
+    </div>
+    <div class="form-group">
+      <label for="external_profile_name">Template Label</label>
+      <input type="text" name="external_profile_name" id="external_profile_name" class="form-control" placeholder="Optional. Example: External webserver template">
+      <small class="form-text text-muted">This template does not need to exist in the DB.</small>
+    </div>
+    <div class="form-group">
+      <label for="csr_pem">CSR (PEM)</label>
+      <textarea name="csr_pem" id="csr_pem" class="form-control" rows="12" placeholder="Paste PEM-encoded CSR here..."></textarea>
+    </div>
+    <div class="form-group">
+      <label for="csr_file">Or upload CSR file</label>
+      <input type="file" name="csr_file" id="csr_file" class="form-control-file">
+      <small class="form-text text-muted">If both are provided, the uploaded file is used.</small>
+    </div>
+    <button type="submit" class="btn btn-primary">Import CSR</button>
+    <a href="{{ url_for('requests.list_csrs') }}" class="btn btn-secondary ml-2">Cancel</a>
+  </form>
+{% endblock %}

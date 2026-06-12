@@ -20,10 +20,15 @@
       {% endfor %}
     </ul>
     <h4>Detailed Certificate Text</h4>
-    <pre>{{ cert_text }}</pre>
-    <h4>Raw Certificate (PEM Format)</h4>
-    <div class="d-flex justify-content-end">
-      <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-target="{{ raw_cert_id }}">Copy</button>
+    <pre class="mb-3">{{ cert_text }}</pre>
+    <div class="d-flex align-items-center justify-content-between mb-2" style="position: relative; z-index: 2;">
+      <h4 class="mb-0">Raw Certificate (PEM Format)</h4>
+      <button type="button"
+              class="btn btn-sm btn-outline-secondary"
+              style="position: relative; z-index: 2; cursor: pointer;"
+              onclick="window.copyTextFromTarget('{{ raw_cert_id }}', this); return false;">
+        Copy
+      </button>
     </div>
     <pre id="{{ raw_cert_id }}">{{ raw_cert }}</pre>
   </div>
