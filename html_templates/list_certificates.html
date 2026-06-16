@@ -1,5 +1,106 @@
 {% extends "layout.html" %}
 {% block content %}
+  <style>
+    .cert-actions .cert-action {
+      border-radius: 6px;
+      border-width: 1px;
+      font-weight: 600;
+    }
+
+    .cert-action-view {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1d4ed8;
+    }
+
+    .cert-action-pem {
+      background: #dcfce7;
+      border-color: #86efac;
+      color: #166534;
+    }
+
+    .cert-action-der {
+      background: #fef3c7;
+      border-color: #fcd34d;
+      color: #92400e;
+    }
+
+    .cert-action-copy {
+      background: #ede9fe;
+      border-color: #c4b5fd;
+      color: #6d28d9;
+    }
+
+    .cert-action-pfx {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #075985;
+    }
+
+    .cert-actions .cert-action:hover {
+      filter: brightness(0.97);
+    }
+
+    body.theme-classic .cert-action-view {
+      background: #0ea5e9;
+      border-color: #0ea5e9;
+      color: #ffffff;
+    }
+
+    body.theme-classic .cert-action-pem {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: #ffffff;
+    }
+
+    body.theme-classic .cert-action-der {
+      background: #d97706;
+      border-color: #d97706;
+      color: #ffffff;
+    }
+
+    body.theme-classic .cert-action-copy {
+      background: #7c3aed;
+      border-color: #7c3aed;
+      color: #ffffff;
+    }
+
+    body.theme-classic .cert-action-pfx {
+      background: #0284c7;
+      border-color: #0284c7;
+      color: #ffffff;
+    }
+
+    body.theme-color-midnight .cert-action-view {
+      background: #38bdf8;
+      border-color: #38bdf8;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-pem {
+      background: #4ade80;
+      border-color: #4ade80;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-der {
+      background: #fbbf24;
+      border-color: #fbbf24;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-copy {
+      background: #a78bfa;
+      border-color: #a78bfa;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .cert-action-pfx {
+      background: #22d3ee;
+      border-color: #22d3ee;
+      color: #0b1220;
+    }
+  </style>
   <section class="content-card">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
@@ -100,14 +201,14 @@
           <td>
             <div class="btn-group cert-actions" role="group">
               <a href="/view/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-view" data-testid="btn-view-cert">View</a>
-              <a href="/downloads/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-download" data-testid="btn-download-cert">Download</a>
-              <a href="/downloads/der/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-download">Der</a>
+              <a href="/downloads/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-pem" data-testid="btn-download-cert">&darr; Pem</a>
+              <a href="/downloads/der/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-der">&darr; Der</a>
               <button type="button" class="btn btn-sm btn-ghost cert-action cert-action-copy" onclick="copyCertPem({{ id }}, this);">
                 Copy
               </button>
 
               <a href="javascript:void(0);" class="btn btn-sm btn-soft cert-action cert-action-pfx" onclick="downloadPfx({{ id }});">
-                PFX
+                &darr; PFX
               </a>
 
               {% if not revoked %}
