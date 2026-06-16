@@ -1,5 +1,51 @@
 {% extends "layout.html" %}
 {% block content %}
+  <style>
+    .ca-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .ca-action-pem {
+      background: #dcfce7;
+      border-color: #86efac;
+      color: #166534;
+      font-weight: 600;
+    }
+
+    .ca-action-der {
+      background: #fef3c7;
+      border-color: #fcd34d;
+      color: #92400e;
+      font-weight: 600;
+    }
+
+    body.theme-classic .ca-action-pem {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: #ffffff;
+    }
+
+    body.theme-classic .ca-action-der {
+      background: #d97706;
+      border-color: #d97706;
+      color: #ffffff;
+    }
+
+    body.theme-color-midnight .ca-action-pem {
+      background: #4ade80;
+      border-color: #4ade80;
+      color: #0b1220;
+    }
+
+    body.theme-color-midnight .ca-action-der {
+      background: #fbbf24;
+      border-color: #fbbf24;
+      color: #0b1220;
+    }
+  </style>
   <h1 class="mb-4">Certificate Authority Details</h1>
 
   <div class="mb-4">
@@ -10,11 +56,15 @@
     <div class="col-lg-6 mb-4">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h2 class="mb-0">Subordinate CA Certificate</h2>
-        <button type="button"
-                class="btn btn-sm btn-outline-secondary"
-                onclick="window.copyTextFromTarget('sub-raw-cert-pre', this); return false;">
-          Copy
-        </button>
+        <div class="ca-actions">
+          <a href="/downloads/ca/sub/pem" class="btn btn-sm btn-ghost ca-action-pem">↓ Pem</a>
+          <a href="/downloads/ca/sub/der" class="btn btn-sm btn-ghost ca-action-der">↓ Der</a>
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  onclick="window.copyTextFromTarget('sub-raw-cert-pre', this); return false;">
+            Copy
+          </button>
+        </div>
       </div>
       {% set cert_details = sub_cert_details %}
       {% set raw_cert = sub_raw_cert %}
@@ -25,11 +75,15 @@
     <div class="col-lg-6 mb-4">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h2 class="mb-0">Root CA Certificate</h2>
-        <button type="button"
-                class="btn btn-sm btn-outline-secondary"
-                onclick="window.copyTextFromTarget('root-raw-cert-pre', this); return false;">
-          Copy
-        </button>
+        <div class="ca-actions">
+          <a href="/downloads/ca/root/pem" class="btn btn-sm btn-ghost ca-action-pem">↓ Pem</a>
+          <a href="/downloads/ca/root/der" class="btn btn-sm btn-ghost ca-action-der">↓ Der</a>
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  onclick="window.copyTextFromTarget('root-raw-cert-pre', this); return false;">
+            Copy
+          </button>
+        </div>
       </div>
       {% set cert_details = root_cert_details %}
       {% set raw_cert = root_raw_cert %}

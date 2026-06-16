@@ -1964,6 +1964,47 @@ def ca_page():
         return f"Error loading CA certificates: {str(e)}", 500
 
 
+@app.route("/downloads/ca/<string:cert_kind>/<string:file_format>")
+@login_required
+def download_ca_certificate(cert_kind, file_format):
+    cert_map = {
+        "root": app.config["ROOT_CERT_PATH"],
+        "sub": app.config["SUBCA_CERT_PATH"],
+    }
+    cert_path = cert_map.get(cert_kind)
+    if not cert_path:
+        return "Unknown CA certificate", 404
+
+    try:
+        with open(cert_path, "r", encoding="utf-8") as f:
+            cert_pem = f.read()
+        cert = x509.load_pem_x509_certificate(cert_pem.encode("utf-8"), default_backend())
+
+        common_name = None
+        for attribute in cert.subject:
+            if attribute.oid == x509.NameOID.COMMON_NAME:
+                common_name = attribute.value
+                break
+        base_name = common_name.replace(" ", "") if common_name else f"{cert_kind}_ca"
+
+        if file_format == "pem":
+            response = make_response(cert.public_bytes(serialization.Encoding.PEM).decode("utf-8"))
+            response.headers.set("Content-Type", "application/x-pem-file")
+            response.headers.set("Content-Disposition", "attachment", filename=f"{base_name}.pem")
+            return response
+
+        if file_format == "der":
+            response = make_response(cert.public_bytes(serialization.Encoding.DER))
+            response.headers.set("Content-Type", "application/pkix-cert")
+            response.headers.set("Content-Disposition", "attachment", filename=f"{base_name}.der")
+            return response
+
+        return "Unsupported format", 400
+    except Exception as e:
+        app.logger.error(f"Failed to download {cert_kind} CA certificate as {file_format}: {e}")
+        return "Failed to export CA certificate", 500
+
+
 
 @app.route("/server_ext", methods=["GET", "POST"])
 @login_required
