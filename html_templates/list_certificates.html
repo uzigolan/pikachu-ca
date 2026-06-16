@@ -101,6 +101,7 @@
             <div class="btn-group cert-actions" role="group">
               <a href="/view/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-view" data-testid="btn-view-cert">View</a>
               <a href="/downloads/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-download" data-testid="btn-download-cert">Download</a>
+              <a href="/downloads/der/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-download">Der</a>
               <button type="button" class="btn btn-sm btn-ghost cert-action cert-action-copy" onclick="copyCertPem({{ id }}, this);">
                 Copy
               </button>

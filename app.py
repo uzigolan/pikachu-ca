@@ -2783,6 +2783,40 @@ def download(cert_id):
         return response
     return "Certificate not found", 404
 
+
+@app.route("/downloads/der/<int:cert_id>")
+def download_der(cert_id):
+    with sqlite3.connect(app.config["DB_PATH"]) as conn:
+        row = conn.execute("SELECT cert_pem FROM certificates WHERE id = ?", (cert_id,)).fetchone()
+    if not row:
+        return "Certificate not found", 404
+
+    cert_pem = row[0]
+    try:
+        pem_blocks = re.findall(
+            r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+            cert_pem,
+            flags=re.DOTALL,
+        )
+        first_pem = pem_blocks[0] if pem_blocks else cert_pem
+        cert = x509.load_pem_x509_certificate(first_pem.encode("utf-8"), default_backend())
+        der_bytes = cert.public_bytes(serialization.Encoding.DER)
+
+        common_name = None
+        for attribute in cert.subject:
+            if attribute.oid == x509.NameOID.COMMON_NAME:
+                common_name = attribute.value
+                break
+        filename = f"{common_name.replace(' ', '')}.der" if common_name else f"cert_{cert_id}.der"
+    except Exception as e:
+        app.logger.error(f"Failed to convert certificate {cert_id} to DER: {e}")
+        return "Failed to convert certificate to DER", 500
+
+    response = make_response(der_bytes)
+    response.headers.set("Content-Type", "application/pkix-cert")
+    response.headers.set("Content-Disposition", "attachment", filename=filename)
+    return response
+
 @app.route("/downloads/chain")
 def download_chain():
     return send_file(app.config["CHAIN_FILE_PATH"], as_attachment=True, download_name="chain.cert.pem")
