@@ -568,16 +568,23 @@ def _subject_public_key_algorithm_label(cert):
 
 
 def _describe_certificate_public_key(cert) -> str:
-    public_key = cert.public_key()
-    if isinstance(public_key, rsa.RSAPublicKey):
-        return f"RSA/{public_key.key_size}"
-    if isinstance(public_key, ec.EllipticCurvePublicKey):
-        curve_name = getattr(public_key.curve, "name", None)
-        return f"EC/{curve_name}" if curve_name else "EC"
     oid_label, oid_value = _subject_public_key_algorithm_label(cert)
-    if oid_label:
+    if oid_label and oid_label.startswith("PQC/"):
         return oid_label
-    public_key_name = type(public_key).__name__.replace("PublicKey", "")
+    public_key = None
+    try:
+        public_key = cert.public_key()
+        if isinstance(public_key, rsa.RSAPublicKey):
+            return f"RSA/{public_key.key_size}"
+        if isinstance(public_key, ec.EllipticCurvePublicKey):
+            curve_name = getattr(public_key.curve, "name", None)
+            return f"EC/{curve_name}" if curve_name else "EC"
+    except Exception:
+        if oid_label:
+            return oid_label
+        if oid_value:
+            return f"PQC/{oid_value}"
+    public_key_name = type(public_key).__name__.replace("PublicKey", "") if public_key is not None else ""
     if public_key_name and public_key_name not in ("", "Unknown"):
         return public_key_name
     if oid_value:
