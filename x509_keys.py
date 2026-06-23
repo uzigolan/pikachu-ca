@@ -22,10 +22,38 @@ PQC_ALGORITHM_CHOICES = [
 ]
 
 PQC_ALGORITHM_LABELS = dict(PQC_ALGORITHM_CHOICES)
+PQC_OID_TO_NAME = {
+    "2.16.840.1.101.3.4.3.17": "mldsa44",
+    "1.3.6.1.4.1.2.267.7.4.4": "mldsa44",
+    "1.3.6.1.4.1.2.267.7.6.5": "mldsa65",
+    "1.3.6.1.4.1.2.267.7.8.7": "mldsa87",
+}
 
 
 def get_pqc_algorithm_label(pqc_alg):
     return PQC_ALGORITHM_LABELS.get(pqc_alg, pqc_alg)
+
+
+def normalize_key_type(key_type):
+    value = (key_type or "").strip()
+    if value in ("RSA", "EC", "PQC"):
+        return value
+    if value in PQC_OID_TO_NAME:
+        return "PQC"
+    return value
+
+
+def derive_pqc_label_from_key(key_obj):
+    normalized = normalize_key_type(getattr(key_obj, "key_type", ""))
+    if normalized != "PQC":
+        return None
+    pqc_alg = getattr(key_obj, "pqc_alg", None)
+    if pqc_alg:
+        return get_pqc_algorithm_label(pqc_alg)
+    raw_key_type = (getattr(key_obj, "key_type", "") or "").strip()
+    if raw_key_type in PQC_OID_TO_NAME:
+        return get_pqc_algorithm_label(PQC_OID_TO_NAME[raw_key_type])
+    return "PQC"
 
 
 def _extract_api_token():
@@ -295,7 +323,7 @@ from zoneinfo import ZoneInfo
 
 def check_key_supported(key_obj):
     """Check if a key can be processed. Returns (is_supported, error_message)"""
-    if key_obj.key_type == "PQC":
+    if normalize_key_type(key_obj.key_type) == "PQC":
         from openssl_utils import check_oqsprovider_available
         if not check_oqsprovider_available():
             return False, "Unsupported (requires oqsprovider)"
@@ -357,7 +385,9 @@ def build_key_formats(key_obj):
             f.write(key_obj.public_key)
         restrict_private_key(priv_path)
 
-        if key_obj.key_type == "RSA":
+        normalized_key_type = normalize_key_type(key_obj.key_type)
+
+        if normalized_key_type == "RSA":
             pkcs1_path = os.path.join(tmpdir, "key_pkcs1.pem")
             pkcs1_cmd = ["openssl", "rsa", "-in", priv_path, "-traditional"]
             pkcs1_cmd.extend(get_provider_args())
@@ -368,7 +398,7 @@ def build_key_formats(key_obj):
                     formats["pkcs1_private"] = f.read()
             except subprocess.CalledProcessError as e:
                 formats["errors"]["pkcs1_private"] = (e.stderr or "OpenSSL failed").strip()
-        elif key_obj.key_type == "EC":
+        elif normalized_key_type == "EC":
             sec1_path = os.path.join(tmpdir, "key_sec1.pem")
             sec1_cmd = ["openssl", "ec", "-in", priv_path]
             sec1_cmd.extend(get_provider_args())
@@ -380,7 +410,7 @@ def build_key_formats(key_obj):
             except subprocess.CalledProcessError as e:
                 formats["errors"]["sec1_private"] = (e.stderr or "OpenSSL failed").strip()
 
-        if key_obj.key_type not in ("RSA", "EC"):
+        if normalized_key_type not in ("RSA", "EC"):
             formats["errors"]["rfc4716_public"] = "RFC4716 is only supported for RSA/EC keys."
         elif not shutil.which("ssh-keygen"):
             formats["errors"]["rfc4716_public"] = "ssh-keygen is not available on PATH."
@@ -438,7 +468,7 @@ def list_keys():
         is_supported, error_msg = check_key_supported(k)
         k.is_supported = is_supported
         k.support_error = error_msg
-        k.pqc_alg_display = get_pqc_algorithm_label(k.pqc_alg) if k.key_type == "PQC" else None
+        k.pqc_alg_display = derive_pqc_label_from_key(k)
         local_keys.append(k)
     return render_template("list_keys.html", keys=local_keys, is_admin=current_user.is_admin())
 
