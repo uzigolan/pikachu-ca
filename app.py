@@ -505,14 +505,11 @@ if app.config["SCEP_ENABLED"] and feature_enabled("scep"):
 
 
 
-OID_TO_NAME = {
-    # Dilithium2
+PQC_OID_TO_NAME = {
+    "2.16.840.1.101.3.4.3.17": "mldsa44",
     "1.3.6.1.4.1.2.267.7.4.4": "mldsa44",
-    # Dilithium3
     "1.3.6.1.4.1.2.267.7.6.5": "mldsa65",
-    # Dilithium5
     "1.3.6.1.4.1.2.267.7.8.7": "mldsa87",
-    # you can add more mappings here
 }
 
 import re
@@ -546,6 +543,30 @@ def _first_certificate_pem_block(cert_pem: str) -> str:
     return pem_blocks[0] if pem_blocks else cert_pem
 
 
+def _lookup_pqc_name(oid_value: str):
+    if not oid_value:
+        return None
+    return PQC_OID_TO_NAME.get(oid_value)
+
+
+def _label_for_oid(oid_value: str):
+    pqc_name = _lookup_pqc_name(oid_value)
+    if pqc_name:
+        return f"PQC/{pqc_name}"
+    return oid_value
+
+
+def _subject_public_key_algorithm_label(cert):
+    try:
+        der = cert.public_bytes(Encoding.DER)
+        asn1c = asn1_x509.Certificate.load(der)
+        spki = asn1c["tbs_certificate"]["subject_public_key_info"]
+        oid_value = spki["algorithm"]["algorithm"].dotted
+        return _label_for_oid(oid_value), oid_value
+    except Exception:
+        return None, None
+
+
 def _describe_certificate_public_key(cert) -> str:
     public_key = cert.public_key()
     if isinstance(public_key, rsa.RSAPublicKey):
@@ -553,8 +574,15 @@ def _describe_certificate_public_key(cert) -> str:
     if isinstance(public_key, ec.EllipticCurvePublicKey):
         curve_name = getattr(public_key.curve, "name", None)
         return f"EC/{curve_name}" if curve_name else "EC"
+    oid_label, oid_value = _subject_public_key_algorithm_label(cert)
+    if oid_label:
+        return oid_label
     public_key_name = type(public_key).__name__.replace("PublicKey", "")
-    return public_key_name or "Unknown"
+    if public_key_name and public_key_name not in ("", "Unknown"):
+        return public_key_name
+    if oid_value:
+        return f"PQC/{oid_value}"
+    return "Unknown"
 
 
 def _extract_certificate_common_name(cert) -> str:
@@ -650,7 +678,7 @@ def certificate_to_dict(cert):
             asn1c = asn1_x509.Certificate.load(der)
             spki = asn1c["tbs_certificate"]["subject_public_key_info"]
             oid = spki["algorithm"]["algorithm"].dotted
-            algo, params = OID_TO_NAME.get(oid, oid), ""
+            algo, params = _label_for_oid(oid), ""
         except Exception:
             # 3) Last resort: call openssl -text
             pem = cert.public_bytes(Encoding.PEM).decode("ascii")
@@ -776,13 +804,6 @@ def enforce_enterprise_feature_gates():
         abort(404)
 
 
-OID_TO_NAME = {
-    "2.16.840.1.101.3.4.3.17":  "PQC/mldsa44",
-    "1.3.6.1.4.1.2.267.7.4.4":   "PQC/mldsa65",
-    "1.3.6.1.4.1.2.267.7.6.5":   "PQC/mldsa87",
-}
-
-
 def extract_keycol_with_openssl(pem_bytes: bytes) -> str:
     """Run `openssl x509 -text` on the cert and return Key column like “RSA/4096”,
     “EC/prime256v1” or “PQC/mldsa44”."""
@@ -826,7 +847,7 @@ def extract_keycol_with_openssl(pem_bytes: bytes) -> str:
     # 3) EC (ECDSA)
     if algo and ("EC" in algo.upper() or "ECDSA" in algo.upper()):
         # prefer curve name if it showed up as an OID, else bits
-        curve = oid_val if oid_val in OID_TO_NAME.keys() or algo.startswith("id-ec") else None
+        curve = oid_val if _lookup_pqc_name(oid_val) or algo.startswith("id-ec") else None
         if curve:
             # map e.g. id-ecPublicKey oid to actual curve name?
             # you can extend OID → name map for EC curves if needed
@@ -835,7 +856,7 @@ def extract_keycol_with_openssl(pem_bytes: bytes) -> str:
 
     # 4) fallback by OID lookup (for any other PQC schemes you map via OID_TO_NAME)
     if oid_val:
-        name = OID_TO_NAME.get(oid_val)
+        name = _lookup_pqc_name(oid_val)
         if name:
             return f"PQC/{name}"
         return f"PQC/{oid_val}"
@@ -1541,8 +1562,8 @@ def build_cert_base64(cert):
     return base64.encodebytes(der).decode("ascii").strip()
 
 def is_pqc_public_key(cert_details):
-    algo = cert_details.get("Public Key Algorithm", "")
-    return algo not in ("RSA", "EC", "") and algo is not None
+    algo = str(cert_details.get("Public Key Algorithm", "") or "")
+    return algo.startswith("PQC/") or algo.startswith("mldsa")
 
 def is_ssh2_supported(cert_details):
     algo = cert_details.get("Public Key Algorithm", "")
