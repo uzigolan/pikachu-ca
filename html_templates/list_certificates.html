@@ -113,29 +113,45 @@
     </div>
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <div class="form-inline">
+      <form method="get" class="form-inline">
         <label for="pageSizeSelect" class="mr-2">Show:</label>
-        <select id="pageSizeSelect" class="form-control form-control-sm" onchange="changePageSize()">
-          <option value="10" selected>10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
+        <select id="pageSizeSelect" name="page_size" class="form-control form-control-sm" onchange="this.form.submit()">
+          <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+          <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+          <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
         </select>
-        <span class="ml-2" id="pageInfo"></span>
-      </div>
+        <input type="hidden" name="q" value="{{ search_query }}">
+        <span class="ml-2">Page {{ current_page }} / {{ total_pages }} ({{ total_count }} total)</span>
+      </form>
       <div>
-        <button class="btn btn-sm btn-outline-secondary mr-2" onclick="previousPage()" id="prevBtn">← Previous</button>
-        <button class="btn btn-sm btn-outline-secondary" onclick="nextPage()" id="nextBtn">Next →</button>
+        {% if current_page > 1 %}
+          <a class="btn btn-sm btn-outline-secondary mr-2" href="{{ url_for('index', page=current_page - 1, page_size=page_size, q=search_query) }}" id="prevBtn">&larr; Previous</a>
+        {% else %}
+          <button class="btn btn-sm btn-outline-secondary mr-2" id="prevBtn" disabled>&larr; Previous</button>
+        {% endif %}
+        {% if current_page < total_pages %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('index', page=current_page + 1, page_size=page_size, q=search_query) }}" id="nextBtn">Next &rarr;</a>
+        {% else %}
+          <button class="btn btn-sm btn-outline-secondary" id="nextBtn" disabled>Next &rarr;</button>
+        {% endif %}
       </div>
     </div>
 
-    <div class="form-group">
+    <form method="get" class="form-group form-inline mb-3">
       <input
         type="text"
         id="filterInput"
-        class="form-control mb-3"
-        onkeyup="filterTable()"
-        placeholder="Filter by common name, serial, key, or date">
-    </div>
+        name="q"
+        value="{{ search_query }}"
+        class="form-control mr-2"
+        placeholder="Filter by common name, serial, or subject">
+      <input type="hidden" name="page_size" value="{{ page_size }}">
+      <button type="submit" class="btn btn-sm btn-outline-secondary mr-2">Search</button>
+      {% if search_query %}
+        <a href="{{ url_for('index', page_size=page_size) }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+      {% endif %}
+    </form>
 
     <table id="certTable" class="table table-striped table-sm" data-testid="certs-table">
       <thead>
@@ -143,27 +159,19 @@
           <th>ID</th>
           <th>Common Name</th>
           <th>Serial <small class="text-muted">(click to copy)</small></th>
-          <th style="cursor:pointer;" onclick="sortTable(3)">Key <span id="sort-3">⇅</span></th>
-          <th style="cursor:pointer;" onclick="sortTable(4)">Date <span id="sort-4">⇅</span></th>
-          <th style="cursor:pointer;" onclick="sortTable(5)">Status <span id="sort-5">⇅</span></th>
+          <th>Key</th>
+          <th>Date</th>
+          <th>Status</th>
           <th>Enrollment</th>
-          {% if is_admin %}<th style="cursor:pointer;" onclick="sortTable(7)">User <span id="sort-7">⇅</span></th>{% endif %}
+          {% if is_admin %}<th>User</th>{% endif %}
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {# Now unpack in the same order you built the tuple: #}
-        {% for id, subject, serial, keycol, date, revoked, expired, username, issued_via, cert_pem in certs %}
+        {% for id, subject, serial, keycol, date, revoked, expired, username, issued_via, cert_pem, common_name in certs %}
         <tr>
           <td>{{ id }}</td>
-          <td>
-            {% set parts = subject.split(',') %}
-            {% for part in parts %}
-              {% if "commonName=" in part %}
-                {{ part.split('=')[1].strip() }}
-              {% endif %}
-            {% endfor %}
-          </td>
+          <td>{{ common_name }}</td>
           <td>
             {% set serial_idx = loop.index0 %}
             <span style="position: relative;">
@@ -206,11 +214,9 @@
               <button type="button" class="btn btn-sm btn-ghost cert-action cert-action-copy" onclick="copyCertPem({{ id }}, this);">
                 Copy
               </button>
-
               <a href="javascript:void(0);" class="btn btn-sm btn-soft cert-action cert-action-pfx" onclick="downloadPfx({{ id }});">
                 &darr; PFX
               </a>
-
               {% if not revoked %}
                 <a href="javascript:void(0);" class="btn btn-sm btn-danger-soft cert-action cert-action-revoke" onclick="handleRevoke({{ id }});" data-testid="btn-revoke-cert">
                   Revoke
@@ -218,7 +224,6 @@
               {% else %}
                 <span class="badge badge-secondary align-self-center">Revoked</span>
               {% endif %}
-
               <a href="javascript:void(0);" class="btn btn-sm btn-outline-danger cert-action cert-action-delete" onclick="handleDelete({{ id }});">
                 Delete
               </a>
@@ -232,12 +237,10 @@
   </section>
 
   <script>
-    let sortDirections = {}; // Track sort direction for each column
     let lastCertState = null;
 
     function copyToClipboard(text, element, idx) {
       navigator.clipboard.writeText(text).then(() => {
-        // Show green Copied! feedback
         var copied = document.getElementById('serial-copied-' + idx);
         if (copied) {
           copied.style.display = 'inline';
@@ -256,77 +259,6 @@
       });
     }
 
-    function sortTable(columnIndex) {
-      var table = document.getElementById('certTable');
-      var rows = Array.from(table.getElementsByTagName('tbody')[0].getElementsByTagName('tr'));
-      var isAscending = sortDirections[columnIndex] !== 'asc';
-      sortDirections[columnIndex] = isAscending ? 'asc' : 'desc';
-
-      // Update all sort indicators
-      document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '⇅');
-      document.getElementById('sort-' + columnIndex).textContent = isAscending ? '↑' : '↓';
-
-      rows.sort(function(a, b) {
-        var aText = a.cells[columnIndex].textContent.trim();
-        var bText = b.cells[columnIndex].textContent.trim();
-
-        // Special handling for Date column (index 4) - parse as date
-        if (columnIndex === 4) {
-          var aDate = new Date(aText);
-          var bDate = new Date(bText);
-          return isAscending ? aDate - bDate : bDate - aDate;
-        }
-
-        // Text comparison for other columns
-        if (aText < bText) return isAscending ? -1 : 1;
-        if (aText > bText) return isAscending ? 1 : -1;
-        return 0;
-      });
-
-      // Reattach sorted rows
-      var tbody = table.getElementsByTagName('tbody')[0];
-      rows.forEach(row => tbody.appendChild(row));
-    }
-
-    function filterTable() {
-      var filterValue = document.getElementById('filterInput').value.toLowerCase();
-      var filterInput = document.getElementById('filterInput');
-
-      // Change background color if filter is active
-      if (filterValue) {
-        filterInput.classList.add('filter-input-active');
-      } else {
-        filterInput.classList.remove('filter-input-active');
-      }
-
-      var table = document.getElementById('certTable');
-      var tbody = table.getElementsByTagName('tbody')[0];
-      var rows = tbody.getElementsByTagName('tr');
-
-      // Hide all rows first, then only show filtered
-      allRows = [];
-      for (var i = 0; i < rows.length; i++) {
-        rows[i].style.display = 'none';
-        var commonNameText = rows[i].cells[1].textContent.trim().toLowerCase();
-        // If serial is truncated, get the hidden full serial for filtering
-        var serialCell = rows[i].cells[2];
-        var serialText = serialCell.textContent.trim().toLowerCase();
-        var fullSerialSpan = serialCell.querySelector('.full-serial');
-        if (fullSerialSpan) {
-          serialText += ' ' + fullSerialSpan.textContent.trim().toLowerCase();
-        }
-        var keyText = rows[i].cells[3].textContent.trim().toLowerCase();
-        var dateText = rows[i].cells[4].textContent.trim().toLowerCase();
-        if (commonNameText.indexOf(filterValue) > -1 ||
-            serialText.indexOf(filterValue) > -1 ||
-            keyText.indexOf(filterValue) > -1 ||
-            dateText.indexOf(filterValue) > -1) {
-          allRows.push(rows[i]);
-        }
-      }
-      showPage(1);
-    }
-
     function handleDelete(certId) {
       var confirmText = prompt("Type 'delete' to confirm deletion of certificate " + certId + ":");
       if (confirmText === null) return;
@@ -341,11 +273,9 @@
       form.submit();
     }
 
-    // Download PFX - ask for a PFX password and POST to server
     function downloadPfx(certId) {
       var pwd = prompt('Choose password for your PFX file:');
       if (pwd === null || pwd === '') {
-        // user cancelled or empty password
         return;
       }
 
@@ -362,67 +292,6 @@
       document.body.appendChild(form);
       form.submit();
     }
-
-    // Pagination variables
-    let currentPage = 1;
-    let pageSize = 10;
-    let allRows = [];
-
-    function initPagination() {
-      var table = document.getElementById('certTable');
-      var tbody = table.getElementsByTagName('tbody')[0];
-      allRows = Array.from(tbody.getElementsByTagName('tr'));
-      showPage(1);
-    }
-
-    function showPage(page) {
-      currentPage = page;
-      var start = (page - 1) * pageSize;
-      var end = start + pageSize;
-
-      allRows.forEach((row, index) => {
-        if (index >= start && index < end) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
-
-      updatePaginationInfo();
-    }
-
-    function updatePaginationInfo() {
-      var totalPages = Math.ceil(allRows.length / pageSize);
-      var start = (currentPage - 1) * pageSize + 1;
-      var end = Math.min(currentPage * pageSize, allRows.length);
-
-      document.getElementById('pageInfo').textContent =
-        `Showing ${start}-${end} of ${allRows.length}`;
-
-      document.getElementById('prevBtn').disabled = currentPage === 1;
-      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
-    }
-
-    function changePageSize() {
-      pageSize = parseInt(document.getElementById('pageSizeSelect').value);
-      showPage(1);
-    }
-
-    function nextPage() {
-      var totalPages = Math.ceil(allRows.length / pageSize);
-      if (currentPage < totalPages) {
-        showPage(currentPage + 1);
-      }
-    }
-
-    function previousPage() {
-      if (currentPage > 1) {
-        showPage(currentPage - 1);
-      }
-    }
-
-    // Initialize pagination on page load
-    window.addEventListener('DOMContentLoaded', initPagination);
 
     async function pollCertState() {
       try {

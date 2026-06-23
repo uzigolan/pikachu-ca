@@ -81,7 +81,7 @@
       var policyValidity = document.getElementById('policy_id_validity');
       function updateContent() {
         if (!select || select.options.length === 0) {
-          content.textContent = '[ v3_ext ]\n# No policy available';
+          content.textContent = '# No policy available';
           if (validityInput) validityInput.value = '{{ validity_days|default("365") }}';
           return;
         }

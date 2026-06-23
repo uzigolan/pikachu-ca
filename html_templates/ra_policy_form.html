@@ -60,6 +60,14 @@
           </div>
         </div>
       {% endif %}
+      {% set no_extensions = not (policy and policy.ext_config and policy.ext_config.strip()) %}
+      {% if not view_only %}
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="no_extensions" name="no_extensions" {% if no_extensions %}checked{% endif %}>
+        <label class="form-check-label" for="no_extensions">No extensions</label>
+      </div>
+      <small class="form-text text-muted mb-2">When selected, the certificate will be signed without an extension configuration file.</small>
+      {% endif %}
       <div class="d-flex align-items-center">
         <label for="ext_config" class="font-weight-bold mb-0">Extension configuration</label>
         <button type="button" class="btn btn-sm btn-outline-secondary ml-2" data-copy-target="ext_config">Copy</button>
@@ -77,13 +85,31 @@
       const btn = document.getElementById('load_profile_btn');
       const select = document.getElementById('profile_name');
       const textarea = document.getElementById('ext_config');
+      const noExtensions = document.getElementById('no_extensions');
+      function syncNoExtensionsState() {
+        if (!textarea || !noExtensions) return;
+        textarea.readOnly = noExtensions.checked;
+        textarea.placeholder = noExtensions.checked
+          ? 'No extensions selected. Certificate will be signed without extension config.'
+          : 'Paste or edit extension config...';
+      }
+      if (noExtensions) {
+        noExtensions.addEventListener('change', syncNoExtensionsState);
+        syncNoExtensionsState();
+      }
       if (!btn || !select || !textarea) return;
       btn.addEventListener('click', function() {
         const name = select.value;
         if (!name) return;
         fetch('/load_profile?filename=' + encodeURIComponent(name))
           .then(r => r.ok ? r.text() : '')
-          .then(txt => { if (txt) textarea.value = txt; });
+          .then(txt => {
+            if (txt) {
+              textarea.value = txt;
+              if (noExtensions) noExtensions.checked = false;
+              syncNoExtensionsState();
+            }
+          });
       });
     });
   </script>

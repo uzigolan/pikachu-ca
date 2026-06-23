@@ -1,8 +1,9 @@
-# Certificate Test Suites (UI & API)
+# Certificate Test Suites (UI, API, and Scale)
 
 Two pytest suites live here:
 - `test_certificates_ui.py`: 17-step UI-style certificate lifecycle with 5s pauses between steps.
 - `test_certificates_api.py`: API/PowerShell flows (basic endpoints, EST, EST mTLS, SCEP, SCEP with challenge, and token-authenticated key API coverage) plus artifact/DB cleanup.
+- `test_certificates_scale.py`: certificate-list scale coverage for `/certs`, including pagination and lazy metadata cache backfill.
 
 ## Quick start
 - Activate venv: `.\.venv\Scripts\activate`
@@ -92,6 +93,15 @@ Two pytest suites live here:
     ```powershell
     $env:PYTHONPATH=(Resolve-Path .); .venv\Scripts\pytest.exe tests_repo/test_certificates_api.py -k "sscep_with_challenge_password" --capture=tee-sys --self-contained-html --html=tests_repo/reports/pikachu_test_api_scep_pass_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').html
     ```
+
+## Scale suite
+- Tests covered:
+  - `/certs` stays paginated with a few hundred certificate rows
+  - listing metadata is backfilled when cache columns are empty
+- Run:
+  ```powershell
+  $env:PYTHONPATH=(Resolve-Path .); .venv\Scripts\pytest.exe tests_repo/test_certificates_scale.py --capture=tee-sys --self-contained-html --html=tests_repo/reports/pikachu_test_scale_$(Get-Date -Format 'yyyy-MM-dd_HH-mm').html
+  ```
 
 ## Reports
 - Saved to `tests_repo/reports/` with timestamps.

@@ -482,6 +482,10 @@ with app.app_context():
                             subject TEXT,
                             serial TEXT,
                             cert_pem TEXT,
+                            common_name TEXT,
+                            keycol TEXT,
+                            not_valid_before TEXT,
+                            not_valid_after TEXT,
                             revoked INTEGER DEFAULT 0
                         )''')
     db.create_all()
@@ -512,6 +516,118 @@ OID_TO_NAME = {
 }
 
 import re
+
+
+def _ensure_certificate_listing_schema(conn):
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(certificates)")
+    columns = {row[1] for row in cur.fetchall()}
+    additions = {
+        "common_name": "TEXT",
+        "keycol": "TEXT",
+        "not_valid_before": "TEXT",
+        "not_valid_after": "TEXT",
+    }
+    for column, coltype in additions.items():
+        if column not in columns:
+            cur.execute(f"ALTER TABLE certificates ADD COLUMN {column} {coltype}")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_user_id_id ON certificates(user_id, id DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_common_name ON certificates(common_name)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_serial ON certificates(serial)")
+    conn.commit()
+
+
+def _first_certificate_pem_block(cert_pem: str) -> str:
+    pem_blocks = re.findall(
+        r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+        cert_pem,
+        flags=re.DOTALL,
+    )
+    return pem_blocks[0] if pem_blocks else cert_pem
+
+
+def _describe_certificate_public_key(cert) -> str:
+    public_key = cert.public_key()
+    if isinstance(public_key, rsa.RSAPublicKey):
+        return f"RSA/{public_key.key_size}"
+    if isinstance(public_key, ec.EllipticCurvePublicKey):
+        curve_name = getattr(public_key.curve, "name", None)
+        return f"EC/{curve_name}" if curve_name else "EC"
+    public_key_name = type(public_key).__name__.replace("PublicKey", "")
+    return public_key_name or "Unknown"
+
+
+def _extract_certificate_common_name(cert) -> str:
+    try:
+        attributes = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+    except Exception:
+        attributes = []
+    return attributes[0].value if attributes else ""
+
+
+def _build_certificate_listing_cache(cert_pem: str):
+    first_pem = _first_certificate_pem_block(cert_pem)
+    cert = x509.load_pem_x509_certificate(first_pem.encode("utf-8"), default_backend())
+    return {
+        "common_name": _extract_certificate_common_name(cert),
+        "keycol": _describe_certificate_public_key(cert),
+        "not_valid_before": cert.not_valid_before_utc.isoformat(),
+        "not_valid_after": cert.not_valid_after_utc.isoformat(),
+    }
+
+
+def _normalize_listing_row(row, now):
+    cert_id = row["id"]
+    common_name = row["common_name"]
+    keycol = row["keycol"]
+    not_valid_before = row["not_valid_before"]
+    not_valid_after = row["not_valid_after"]
+
+    if not common_name:
+        common_name = ""
+        for part in (row["subject"] or "").split(","):
+            if "commonName=" in part:
+                common_name = part.split("=", 1)[1].strip()
+                break
+
+    try:
+        issue_date = datetime.fromisoformat(not_valid_before).astimezone().strftime("%Y-%m-%d %H:%M") if not_valid_before else ""
+    except Exception:
+        issue_date = not_valid_before or ""
+    try:
+        expired = datetime.fromisoformat(not_valid_after) < now if not_valid_after else False
+    except Exception:
+        expired = False
+
+    return (
+        cert_id,
+        row["subject"],
+        row["serial"],
+        keycol or "Unknown",
+        issue_date,
+        row["revoked"],
+        expired,
+        row["username"],
+        row["issued_via"],
+        row["cert_pem"],
+        common_name,
+    )
+
+
+with app.app_context():
+    with sqlite3.connect(app.config["DB_PATH"]) as conn:
+        _ensure_certificate_listing_schema(conn)
+
+
+def _policy_uses_extensions(policy) -> bool:
+    if not policy:
+        return False
+    return bool((policy.get("ext_config") or "").strip())
+
+
+def _append_extension_args(cmd, extfile_path, ext_block="v3_ext"):
+    if extfile_path:
+        cmd.extend(["-extfile", extfile_path, "-extensions", ext_block])
 
 def certificate_to_dict(cert):
     def oid_name(oid):
@@ -866,7 +982,7 @@ def get_server_ext_content():
         policy = mgr.get_policy(name=name, user_id=current_user.id)
     if not policy:
         return 'Policy not found', 404
-    content = policy.get("ext_config") or "[ v3_ext ]\n# No additional extensions"
+    content = policy.get("ext_config") or "# No extensions\n# Certificate will be signed without extension configuration."
     return content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
 
 
@@ -967,47 +1083,87 @@ def view_logs_page():
 def index():
     try:
         with sqlite3.connect(app.config["DB_PATH"]) as conn:
+            conn.row_factory = sqlite3.Row
+            _ensure_certificate_listing_schema(conn)
             cur = conn.cursor()
-            if current_user.is_admin():
-                cur.execute("""
-                    SELECT c.id, c.subject, c.serial, c.revoked, c.cert_pem, c.user_id, c.issued_via
+            page_size = request.args.get("page_size", default=25, type=int) or 25
+            page_size = page_size if page_size in (10, 25, 50, 100) else 25
+            page = request.args.get("page", default=1, type=int) or 1
+            page = max(1, page)
+            search_query = (request.args.get("q") or "").strip()
+            params = []
+            where_clauses = []
+            if not current_user.is_admin():
+                where_clauses.append("c.user_id = ?")
+                params.append(current_user.id)
+            if search_query:
+                like_value = f"%{search_query}%"
+                where_clauses.append("(c.subject LIKE ? OR c.serial LIKE ? OR COALESCE(c.common_name, '') LIKE ?)")
+                params.extend([like_value, like_value, like_value])
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+            count_row = cur.execute(
+                f"SELECT COUNT(*) AS total FROM certificates c {where_sql}",
+                params,
+            ).fetchone()
+            total_count = count_row["total"] if count_row else 0
+            total_pages = max(1, (total_count + page_size - 1) // page_size)
+            page = min(page, total_pages)
+            offset = (page - 1) * page_size
+
+            rows = cur.execute(
+                f"""
+                    SELECT c.id, c.subject, c.serial, c.revoked, c.cert_pem, c.user_id, c.issued_via,
+                           c.common_name, c.keycol, c.not_valid_before, c.not_valid_after,
+                           u.username
                     FROM certificates c
+                    LEFT JOIN users u ON u.id = c.user_id
+                    {where_sql}
                     ORDER BY c.id DESC
-                """)
-            else:
-                cur.execute("""
-                    SELECT c.id, c.subject, c.serial, c.revoked, c.cert_pem, c.user_id, c.issued_via
-                    FROM certificates c
-                    WHERE c.user_id = ?
-                    ORDER BY c.id DESC
-                """, (current_user.id,))
-            rows = cur.fetchall()
-        #app.logger.debug(f"DB retruned {len(rows)} certificates for user {current_user.username}    (id={current_user.id})")
-        certs = []
+                    LIMIT ? OFFSET ?
+                """,
+                [*params, page_size, offset],
+            ).fetchall()
+
+            pending_updates = []
+            hydrated_rows = []
+            for row in rows:
+                row_dict = dict(row)
+                if not row_dict.get("common_name") or not row_dict.get("keycol") or not row_dict.get("not_valid_before") or not row_dict.get("not_valid_after"):
+                    cache = _build_certificate_listing_cache(row_dict["cert_pem"])
+                    row_dict.update(cache)
+                    pending_updates.append((
+                        row_dict["common_name"],
+                        row_dict["keycol"],
+                        row_dict["not_valid_before"],
+                        row_dict["not_valid_after"],
+                        row_dict["id"],
+                    ))
+                hydrated_rows.append(row_dict)
+
+            if pending_updates:
+                conn.executemany(
+                    """
+                    UPDATE certificates
+                    SET common_name = ?, keycol = ?, not_valid_before = ?, not_valid_after = ?
+                    WHERE id = ?
+                    """,
+                    pending_updates,
+                )
+                conn.commit()
+
         now = datetime.now(timezone.utc)
-        from user_models import get_user_by_id
-        for row in rows:
-            # Now expecting 7 columns: id, subject, serial, revoked, cert_pem, user_id, issued_via
-            id_, subject, serial, revoked, cert_pem, user_id, issued_via = row
-            cert = x509.load_pem_x509_certificate(
-                cert_pem.encode(), default_backend()
-            )
-            issue_date = cert.not_valid_before_utc.astimezone().strftime("%Y-%m-%d %H:%M")
-            expired = cert.not_valid_after_utc < now
-            keycol = extract_keycol_with_openssl(
-                cert.public_bytes(Encoding.PEM).decode("utf-8").encode("utf-8")
-            )
-            username = None
-            if user_id:
-                user_obj = get_user_by_id(user_id)
-                username = user_obj.username if user_obj else str(user_id)
-            app.logger.trace(f"Cert ID {id_}: keycol={keycol}, expired={expired}   revoked={revoked}")
-            certs.append((id_, subject, serial, keycol, issue_date, revoked, expired, username, issued_via, cert_pem))
+        certs = [_normalize_listing_row(row, now) for row in hydrated_rows]
 
         return render_template(
             "list_certificates.html",
             certs=certs,
-            is_admin=current_user.is_admin()
+            is_admin=current_user.is_admin(),
+            current_page=page,
+            page_size=page_size,
+            total_count=total_count,
+            total_pages=total_pages,
+            search_query=search_query,
         )
     except Exception as e:
         app.logger.error(f"Failed to load index: {e}")
@@ -2134,7 +2290,8 @@ def ra_policy_new():
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
         validity = (request.form.get("validity") or DEFAULT_VALIDITY_DAYS).strip()
-        ext_config = request.form.get("ext_config") or ""
+        no_extensions = request.form.get("no_extensions") == "on"
+        ext_config = "" if no_extensions else (request.form.get("ext_config") or "")
         profile_name = request.form.get("profile_name")
         policy_type = "system" if (current_user.is_admin() and request.form.get("is_system") == "on") else "user"
         user_id = None if policy_type == "system" else current_user.id
@@ -2156,6 +2313,7 @@ def ra_policy_new():
             prof = Profile.query.filter_by(name=profile_name).first()
             if prof and prof.content:
                 ext_config = prof.content
+                no_extensions = False
 
 
         try:
@@ -2225,7 +2383,8 @@ def ra_policy_edit(policy_id):
     profiles = _get_profile_options()
     if request.method == "POST":
         validity = (request.form.get("validity") or policy.get("validity_period") or DEFAULT_VALIDITY_DAYS).strip()
-        ext_config = request.form.get("ext_config") or policy.get("ext_config") or ""
+        no_extensions = request.form.get("no_extensions") == "on"
+        ext_config = "" if no_extensions else (request.form.get("ext_config") or policy.get("ext_config") or "")
         profile_name = request.form.get("profile_name")
         est_default = current_user.is_admin() and request.form.get("is_est_default") == "on"
         scep_default = current_user.is_admin() and request.form.get("is_scep_default") == "on"
@@ -2237,6 +2396,7 @@ def ra_policy_edit(policy_id):
             prof = Profile.query.filter_by(name=profile_name).first()
             if prof and prof.content:
                 ext_config = prof.content
+                no_extensions = False
 
 
         try:
@@ -2513,32 +2673,30 @@ def submit():
     # Always log the OpenSSL command that would be used for signing
     with mgr.temp_extfile(policy) as extfile_path:
         openssl_cmd_preview = None
-        if extfile_path:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".csr") as csr_file:
-                csr_file.write(csr_pem.encode())
-                csr_filename = csr_file.name
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pem") as cert_file:
-                cert_filename = cert_file.name
-            custom_serial = secrets.randbits(64)
-            custom_serial_str = hex(custom_serial)
-            openssl_cmd = ["openssl", "x509"]
-            openssl_cmd.extend(get_provider_args())
-            openssl_cmd.extend(["-req",
-                "-in", csr_filename,
-                "-CA", app.config["SUBCA_CERT_PATH"],
-                "-CAkey", app.config["SUBCA_KEY_PATH"],
-                "-set_serial", custom_serial_str, 
-                "-CAcreateserial",
-                "-days", str(validity_int),
-                "-out", cert_filename,
-                "-extfile", extfile_path,
-                "-extensions", ext_block
-            ])
-            openssl_cmd_preview = ' '.join(openssl_cmd)
-            app.logger.debug(f"[L1997] submit: OpenSSL command preview: {openssl_cmd_preview}")
-            # for tests4: do not unlink temp files so they can be used for manual OpenSSL testing
-            # os.unlink(csr_filename)
-            # os.unlink(cert_filename)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csr") as csr_file:
+            csr_file.write(csr_pem.encode())
+            csr_filename = csr_file.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pem") as cert_file:
+            cert_filename = cert_file.name
+        custom_serial = secrets.randbits(64)
+        custom_serial_str = hex(custom_serial)
+        openssl_cmd = ["openssl", "x509"]
+        openssl_cmd.extend(get_provider_args())
+        openssl_cmd.extend(["-req",
+            "-in", csr_filename,
+            "-CA", app.config["SUBCA_CERT_PATH"],
+            "-CAkey", app.config["SUBCA_KEY_PATH"],
+            "-set_serial", custom_serial_str, 
+            "-CAcreateserial",
+            "-days", str(validity_int),
+            "-out", cert_filename,
+        ])
+        _append_extension_args(openssl_cmd, extfile_path, ext_block)
+        openssl_cmd_preview = ' '.join(openssl_cmd)
+        app.logger.debug(f"[L1997] submit: OpenSSL command preview: {openssl_cmd_preview}")
+        # for tests4: do not unlink temp files so they can be used for manual OpenSSL testing
+        # os.unlink(csr_filename)
+        # os.unlink(cert_filename)
     if app.config.get("VAULT_ENABLED", False):
         try:
             app.logger.debug("submit: Attempting to create CA instance (Vault enabled)")
@@ -2557,10 +2715,6 @@ def submit():
     else:
         with mgr.temp_extfile(policy) as extfile_path:
             app.logger.trace(f"submit: Using extfile_path={extfile_path}")
-            if not extfile_path:
-                app.logger.error("submit: No RA policy extension configuration available.")
-                flash("No RA policy extension configuration available.", "error")
-                return redirect("/")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".csr") as csr_file:
                 csr_file.write(csr_pem.encode())
                 csr_filename = csr_file.name
@@ -2581,9 +2735,8 @@ def submit():
                 "-CAcreateserial",
                 "-days", str(validity_int),
                 "-out", cert_filename,
-                "-extfile", extfile_path,
-                "-extensions", ext_block
             ])
+            _append_extension_args(cmd, extfile_path, ext_block)
             app.logger.trace(f"[L2009] submit: OpenSSL command: {' '.join(cmd)}")
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -2609,10 +2762,26 @@ def submit():
             # Unlink extfile_path after copying for cleanup
             os.unlink(extfile_path)
     app.logger.debug(f"submit: Saving certificate to database, serial={actual_serial}")
+    cert_cache = _build_certificate_listing_cache(cert_pem)
     with sqlite3.connect(app.config["DB_PATH"]) as conn:
         conn.execute(
-            "INSERT INTO certificates (subject, serial, cert_pem, user_id, issued_via) VALUES (?, ?, ?, ?, ?)",
-            (subject_str, actual_serial, cert_pem, current_user.id, 'ui')
+            """
+            INSERT INTO certificates (
+                subject, serial, cert_pem, user_id, issued_via,
+                common_name, keycol, not_valid_before, not_valid_after
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                subject_str,
+                actual_serial,
+                cert_pem,
+                current_user.id,
+                'ui',
+                cert_cache["common_name"],
+                cert_cache["keycol"],
+                cert_cache["not_valid_before"],
+                cert_cache["not_valid_after"],
+            )
         )
     app.logger.debug(f"submit: Certificate saved to DB for user_id={current_user.id}")
     # Event logging
@@ -2666,8 +2835,6 @@ def submit_q():
 
     try:
         with mgr.temp_extfile(policy) as extfile_path:
-            if not extfile_path:
-                return "No extension config available", 400
             cmd = ["openssl", "x509"]
             cmd.extend(get_provider_args())
             cmd.extend(["-req",
@@ -2678,9 +2845,8 @@ def submit_q():
                 "-CAcreateserial",
                 "-days", validity_int,
                 "-out", cert_filename,
-                "-extfile", extfile_path,
-                "-extensions", ext_block
             ])
+            _append_extension_args(cmd, extfile_path, ext_block)
             subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         os.unlink(csr_filename)
@@ -2696,9 +2862,25 @@ def submit_q():
     serial_hex = hex(x509.random_serial_number())
     from flask_login import current_user
     with sqlite3.connect(app.config["DB_PATH"]) as conn:
+        cert_cache = _build_certificate_listing_cache(full_chain_pem)
         conn.execute(
-            "INSERT INTO certificates (subject, serial, cert_pem, user_id, issued_via) VALUES (?, ?, ?, ?, ?)",
-            (subject_str, serial_hex, full_chain_pem, current_user.id, 'ui')
+            """
+            INSERT INTO certificates (
+                subject, serial, cert_pem, user_id, issued_via,
+                common_name, keycol, not_valid_before, not_valid_after
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                subject_str,
+                serial_hex,
+                full_chain_pem,
+                current_user.id,
+                'ui',
+                cert_cache["common_name"],
+                cert_cache["keycol"],
+                cert_cache["not_valid_before"],
+                cert_cache["not_valid_after"],
+            )
         )
     # Event logging
     from events import log_event
