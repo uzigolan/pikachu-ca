@@ -1,18 +1,32 @@
-﻿{% extends "layout.html" %}
+{% extends "layout.html" %}
 {% block content %}
+  <style>
+    .sign-ext-disabled {
+      background: #e9ecef;
+      color: #6c757d;
+      opacity: 0.95;
+    }
+
+    .sign-control-disabled {
+      background: #e9ecef !important;
+      color: #6c757d;
+      cursor: not-allowed;
+    }
+  </style>
   <div class="row mb-4">
     <div class="col">
       <h1 class="mb-3"><span class="product-name-display">{{ product_name }}</span> (R&D Only)</h1>
     </div>
   </div>
 
-
   <div class="row">
     <div class="col-md-8">
-      <!-- CSR Submission Section -->
       <h2>Submit a CSR</h2>
       <form method="POST" action="/submit" class="csr-form mb-4">
         <input type="hidden" name="policy_id" id="policy_id_submit" value="{{ selected_policy.id if selected_policy }}">
+        <input type="hidden" name="no_extensions" id="no_extensions_submit" value="">
+        <input type="hidden" name="use_csr_extensions" id="use_csr_extensions_submit" value="">
+        <input type="hidden" name="validity_days_override" id="validity_days_override_submit" value="">
         <div class="form-group">
           <textarea id="csr_textarea" name="csr" rows="10" class="form-control" placeholder="Paste PEM-encoded CSR here..."></textarea>
         </div>
@@ -20,7 +34,6 @@
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('csr_textarea').value = '';">Clear CSR</button>
       </form>
 
-      <!-- Load Pending CSR Section -->
       <div class="mb-4">
         <h4>Load a Pending CSR Request</h4>
         <div class="input-group">
@@ -36,7 +49,6 @@
       </div>
     </div>
 
-    <!-- Sidebar Section -->
     <div class="col-md-4">
       <h4>Select Enrollment Policy</h4>
       <a href="/ra_policies" class="btn btn-sm mb-2" style="background-color: #fd7e14; color: #fff;">Manage enrollment policies</a>
@@ -52,6 +64,14 @@
           </select>
         </div>
       </form>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="no_extensions">
+        <label class="form-check-label" for="no_extensions">No extensions for this signing action</label>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="use_csr_extensions">
+        <label class="form-check-label" for="use_csr_extensions">Use CSR extensions for this signing action</label>
+      </div>
       <h4 class="mt-3">Extension</h4>
       <pre id="server_ext_content" class="server-ext-content">Select a config to view its content.</pre>
 
@@ -62,9 +82,6 @@
     </div>
   </div>
 
-
-
-
   <script>
     function loadCSR() {
       var select = document.getElementById('csr_select');
@@ -72,35 +89,127 @@
       document.getElementById('csr_textarea').value = csrText;
     }
 
-    // Show server extension config content on selection
     document.addEventListener('DOMContentLoaded', function() {
+      var signForm = document.querySelector('form.csr-form');
       var select = document.getElementById('server_ext_select');
       var content = document.getElementById('server_ext_content');
       var validityInput = document.getElementById('validity_days');
       var policySubmit = document.getElementById('policy_id_submit');
-      var policyValidity = document.getElementById('policy_id_validity');
+      var validityOverrideSubmit = document.getElementById('validity_days_override_submit');
+      var noExtensionsSubmit = document.getElementById('no_extensions_submit');
+      var useCsrExtensionsSubmit = document.getElementById('use_csr_extensions_submit');
+      var noExtensions = document.getElementById('no_extensions');
+      var useCsrExtensions = document.getElementById('use_csr_extensions');
+      var defaultValidity = '365';
+
+      function syncSubmitFields() {
+        if (noExtensionsSubmit) {
+          noExtensionsSubmit.value = (noExtensions && noExtensions.checked) ? 'on' : '';
+        }
+        if (useCsrExtensionsSubmit) {
+          useCsrExtensionsSubmit.value = (useCsrExtensions && useCsrExtensions.checked) ? 'on' : '';
+        }
+        if (validityOverrideSubmit && validityInput) {
+          validityOverrideSubmit.value = validityInput.value || '';
+        }
+        if (policySubmit && select && !select.disabled) {
+          policySubmit.value = select.value;
+        }
+      }
+
       function updateContent() {
+        syncSubmitFields();
+        if (noExtensions && useCsrExtensions) {
+          if (this === noExtensions && noExtensions.checked) {
+            useCsrExtensions.checked = false;
+            if (useCsrExtensionsSubmit) useCsrExtensionsSubmit.value = '';
+          }
+          if (this === useCsrExtensions && useCsrExtensions.checked) {
+            noExtensions.checked = false;
+            if (noExtensionsSubmit) noExtensionsSubmit.value = '';
+          }
+        }
+        if (noExtensions && noExtensions.checked) {
+          if (select) {
+            select.disabled = true;
+            select.classList.add('sign-control-disabled');
+          }
+          content.textContent = '[ v3_ext ]';
+          content.classList.add('sign-ext-disabled');
+          if (validityInput) {
+            validityInput.readOnly = false;
+            validityInput.value = defaultValidity;
+            validityInput.classList.remove('sign-control-disabled');
+          }
+          return;
+        }
+        if (useCsrExtensions && useCsrExtensions.checked) {
+          if (select) {
+            select.disabled = true;
+            select.classList.add('sign-control-disabled');
+          }
+          content.textContent = '[ CSR requested extensions ]';
+          content.classList.add('sign-ext-disabled');
+          if (validityInput) {
+            validityInput.readOnly = false;
+            validityInput.classList.remove('sign-control-disabled');
+          }
+          return;
+        }
+        if (select) {
+          select.disabled = false;
+          select.classList.remove('sign-control-disabled');
+        }
         if (!select || select.options.length === 0) {
           content.textContent = '# No policy available';
-          if (validityInput) validityInput.value = '{{ validity_days|default("365") }}';
+          content.classList.remove('sign-ext-disabled');
+          if (validityInput) {
+            validityInput.readOnly = true;
+            validityInput.value = '{{ validity_days|default("365") }}';
+            validityInput.classList.add('sign-control-disabled');
+          }
           return;
         }
         var val = select.value;
         if (policySubmit) policySubmit.value = val;
-        if (policyValidity) policyValidity.value = val;
         var selectedOption = select.options[select.selectedIndex];
         if (selectedOption && selectedOption.dataset && selectedOption.dataset.validity) {
           validityInput.value = selectedOption.dataset.validity;
         }
+        if (validityInput) {
+          validityInput.readOnly = true;
+          validityInput.classList.add('sign-control-disabled');
+        }
         fetch('/get_server_ext_content?policy_id=' + encodeURIComponent(val))
           .then(r => r.ok ? r.text() : 'Error loading config')
-          .then(txt => { content.textContent = txt; });
+          .then(txt => {
+            content.classList.remove('sign-ext-disabled');
+            content.textContent = txt;
+          });
       }
-      select.addEventListener('change', updateContent);
+
+      if (select) {
+        select.addEventListener('change', updateContent);
+      }
+      if (noExtensions) {
+        noExtensions.addEventListener('change', updateContent);
+      }
+      if (useCsrExtensions) {
+        useCsrExtensions.addEventListener('change', updateContent);
+      }
+      if (validityInput) {
+        validityInput.addEventListener('input', function() {
+          if (validityOverrideSubmit) {
+            validityOverrideSubmit.value = validityInput.value || '';
+          }
+        });
+      }
+      if (signForm) {
+        signForm.addEventListener('submit', function() {
+          syncSubmitFields();
+        });
+      }
       updateContent();
     });
   </script>
 {% endblock %}
-
-
-

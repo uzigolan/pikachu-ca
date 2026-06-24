@@ -664,6 +664,11 @@ def _append_extension_args(cmd, extfile_path, ext_block="v3_ext"):
     if extfile_path:
         cmd.extend(["-extfile", extfile_path, "-extensions", ext_block])
 
+
+def _append_csr_extension_copy_args(cmd, use_csr_extensions: bool):
+    if use_csr_extensions:
+        cmd.extend(["-copy_extensions", "copy"])
+
 def certificate_to_dict(cert):
     def oid_name(oid):
         return getattr(oid, "_name", None) or oid.dotted_string
@@ -2660,6 +2665,9 @@ def submit():
     csr_input = request.form["csr"]
     app.logger.debug(f"submit: ext_block={request.form.get('ext_block', 'v3_ext')}")
     ext_block = request.form.get("ext_block", "v3_ext")
+    no_extensions = request.form.get("no_extensions") == "on"
+    use_csr_extensions = request.form.get("use_csr_extensions") == "on"
+    validity_override = (request.form.get("validity_days_override") or "").strip()
     policy_id = request.form.get("policy_id")
     app.logger.debug(f"submit: policy_id={policy_id}")
     mgr, policy = _resolve_ra_policy(policy_id, current_user.id)
@@ -2688,7 +2696,7 @@ def submit():
         app.logger.debug(f"submit: No policy selected, using EST protocol default policy: {policy}")
     else:
         app.logger.debug(f"submit: Using selected enrollment policy: {policy}")
-    validity_days = mgr.get_validity_days(policy)
+    validity_days = validity_override if ((no_extensions or use_csr_extensions) and validity_override) else mgr.get_validity_days(policy)
     app.logger.debug(f"submit: Validity days from policy: {validity_days}")
     try:
         validity_int = int(str(validity_days))
@@ -2699,7 +2707,7 @@ def submit():
 
     # Always log the OpenSSL command that would be used for signing
     # Always log the OpenSSL command that would be used for signing
-    with mgr.temp_extfile(policy) as extfile_path:
+    with mgr.temp_extfile(None if (no_extensions or use_csr_extensions) else policy) as extfile_path:
         openssl_cmd_preview = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=".csr") as csr_file:
             csr_file.write(csr_pem.encode())
@@ -2720,6 +2728,7 @@ def submit():
             "-out", cert_filename,
         ])
         _append_extension_args(openssl_cmd, extfile_path, ext_block)
+        _append_csr_extension_copy_args(openssl_cmd, use_csr_extensions)
         openssl_cmd_preview = ' '.join(openssl_cmd)
         app.logger.debug(f"[L1997] submit: OpenSSL command preview: {openssl_cmd_preview}")
         # for tests4: do not unlink temp files so they can be used for manual OpenSSL testing
@@ -2741,7 +2750,7 @@ def submit():
             flash(f"Vault CA signing failed: {e}", "error")
             return redirect("/")
     else:
-        with mgr.temp_extfile(policy) as extfile_path:
+        with mgr.temp_extfile(None if (no_extensions or use_csr_extensions) else policy) as extfile_path:
             app.logger.trace(f"submit: Using extfile_path={extfile_path}")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".csr") as csr_file:
                 csr_file.write(csr_pem.encode())
@@ -2765,6 +2774,7 @@ def submit():
                 "-out", cert_filename,
             ])
             _append_extension_args(cmd, extfile_path, ext_block)
+            _append_csr_extension_copy_args(cmd, use_csr_extensions)
             app.logger.trace(f"[L2009] submit: OpenSSL command: {' '.join(cmd)}")
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -2782,13 +2792,14 @@ def submit():
             cert_obj = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
             actual_serial = hex(cert_obj.serial_number)
             app.logger.trace(f"[L2018] submit: Loaded cert object, serial={actual_serial}")
-            # Copy extfile_path to a permanent location for manual inspection
-            import shutil
-            extfile_copy_path = extfile_path + ".copy.cnf"
-            shutil.copy(extfile_path, extfile_copy_path)
-            app.logger.info(f"[L2034] submit: extfile config copied for manual inspection: {extfile_copy_path}")
-            # Unlink extfile_path after copying for cleanup
-            os.unlink(extfile_path)
+            if extfile_path:
+                # Copy extfile_path to a permanent location for manual inspection
+                import shutil
+                extfile_copy_path = extfile_path + ".copy.cnf"
+                shutil.copy(extfile_path, extfile_copy_path)
+                app.logger.info(f"[L2034] submit: extfile config copied for manual inspection: {extfile_copy_path}")
+                # Unlink extfile_path after copying for cleanup
+                os.unlink(extfile_path)
     app.logger.debug(f"submit: Saving certificate to database, serial={actual_serial}")
     cert_cache = _build_certificate_listing_cache(cert_pem)
     with sqlite3.connect(app.config["DB_PATH"]) as conn:
@@ -2830,6 +2841,9 @@ def submit():
 def submit_q():
     csr_input = request.form["csr"]
     ext_block = request.form.get("ext_block", "v3_ext")
+    no_extensions = request.form.get("no_extensions") == "on"
+    use_csr_extensions = request.form.get("use_csr_extensions") == "on"
+    validity_override = (request.form.get("validity_days_override") or "").strip()
     policy_id = request.form.get("policy_id")
     mgr, policy = _resolve_ra_policy(policy_id, None)
     if not policy:
@@ -2855,14 +2869,14 @@ def submit_q():
     custom_serial_str = hex(custom_serial)
 
 
-    validity_days = mgr.get_validity_days(policy)
+    validity_days = validity_override if ((no_extensions or use_csr_extensions) and validity_override) else mgr.get_validity_days(policy)
     try:
         validity_int = int(str(validity_days))
     except Exception:
         validity_int = int(DEFAULT_VALIDITY_DAYS)
 
     try:
-        with mgr.temp_extfile(policy) as extfile_path:
+        with mgr.temp_extfile(None if (no_extensions or use_csr_extensions) else policy) as extfile_path:
             cmd = ["openssl", "x509"]
             cmd.extend(get_provider_args())
             cmd.extend(["-req",
@@ -2875,6 +2889,7 @@ def submit_q():
                 "-out", cert_filename,
             ])
             _append_extension_args(cmd, extfile_path, ext_block)
+            _append_csr_extension_copy_args(cmd, use_csr_extensions)
             subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         os.unlink(csr_filename)
