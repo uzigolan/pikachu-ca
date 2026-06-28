@@ -57,6 +57,30 @@ def _get_ra_mgr():
     return RAPolicyManager(current_app.config["DB_PATH"], current_app.logger)
 
 
+def _load_pem_certificates(path):
+  if not path or not os.path.exists(path):
+    return []
+
+  try:
+    with open(path, "rb") as handle:
+      pem_data = handle.read()
+  except Exception:
+    return []
+
+  certs = []
+  matches = re.findall(
+    rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+    pem_data,
+    flags=re.DOTALL,
+  )
+  for pem_block in matches:
+    try:
+      certs.append(x509.load_pem_x509_certificate(pem_block, default_backend()))
+    except Exception:
+      continue
+  return certs
+
+
 @scep_app.before_app_request
 def log_scep_request():
     # Only log requests destined for our blueprint
@@ -123,6 +147,36 @@ def scep():
   # --- GetCACert ---
   if op == 'GetCACert':
     current_app.logger.debug("Handling GetCACert")
+    include_chain = current_app.config.get('SCEP_GETCACERT_INCLUDE_CHAIN', False)
+
+    if include_chain:
+      certs = [ca.certificate]
+      seen = {ca.certificate.public_bytes(Encoding.DER)}
+
+      # Prefer explicit root cert path.
+      for root_cert in _load_pem_certificates(current_app.config.get('ROOT_CERT_PATH')):
+        der = root_cert.public_bytes(Encoding.DER)
+        if der not in seen:
+          certs.append(root_cert)
+          seen.add(der)
+
+      # Fallback to chain file if root cert path did not add anything.
+      if len(certs) == 1:
+        for chain_cert in _load_pem_certificates(current_app.config.get('CHAIN_FILE_PATH')):
+          der = chain_cert.public_bytes(Encoding.DER)
+          if der not in seen:
+            certs.append(chain_cert)
+            seen.add(der)
+
+      if len(certs) > 1:
+        current_app.logger.info("GetCACert returning PKCS#7 cert set with %d certificate(s)", len(certs))
+        deg = create_degenerate_pkcs7(*certs)
+        return Response(deg.dump(), mimetype='application/x-x509-ca-ra-cert')
+
+      current_app.logger.warning(
+        "GetCACert full-chain requested but only one certificate is available; returning single cert"
+      )
+
     der = ca.certificate.public_bytes(Encoding.DER)
     return Response(der, mimetype='application/x-x509-ca-cert')
 

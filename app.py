@@ -240,6 +240,7 @@ vault_client = None
 app.config["SCEP_ENABLED"]   = _cfg.getboolean("SCEP", "enabled", fallback=True)
 app.config["SCEP_SERIAL_PATH"] = _cfg.get("SCEP", "serial_file", fallback=None)
 app.config["SCEPY_DUMP_DIR"]   = _cfg.get("SCEP", "dump_dir", fallback=None)
+app.config["SCEP_GETCACERT_INCLUDE_CHAIN"] = _cfg.getboolean("SCEP", "getcacert_include_chain", fallback=False)
 app.config["SCEP_CHALLENGE_PASSWORD_ENABLED"] = _cfg.getboolean("SCEP", "challenge_password_enabled", fallback=False)
 app.config["SCEP_CHALLENGE_PASSWORD_VALIDITY"] = _cfg.get("SCEP", "challenge_password_validity", fallback="60m")
 HTTP_SCEP_PORT                = _cfg.getint("SCEP", "http_port", fallback=9090)
