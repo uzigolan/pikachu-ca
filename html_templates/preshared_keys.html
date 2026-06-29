@@ -8,9 +8,21 @@
         <label for="name">Name</label>
         <input id="name" name="name" type="text" class="form-control" placeholder="device-001">
       </div>
-      <div class="form-group col-md-2">
+      <div class="form-group col-md-1">
         <label for="length">Length</label>
         <input id="length" name="length" type="number" class="form-control" min="4" max="256" value="{{ default_length }}">
+      </div>
+      <div class="form-group col-md-2">
+        <label for="psk_profile">PSK Profile</label>
+        <select id="psk_profile" name="psk_profile" class="form-control">
+          {% for profile in psk_profiles %}
+          <option
+            value="{{ profile.value }}"
+            data-default-length="{{ profile.default_length if profile.default_length is not none else '' }}"
+            {% if profile.value == default_psk_profile %}selected{% endif %}
+          >{{ profile.label }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="form-group col-md-2">
         <label for="validity">Validity</label>
@@ -24,9 +36,10 @@
         <label for="purpose">Purpose</label>
         <input id="purpose" name="purpose" type="text" class="form-control" placeholder="mqtt">
       </div>
-      <div class="form-group col-md-2">
-        <label for="note">Note</label>
-        <input id="note" name="note" type="text" class="form-control" placeholder="Optional note">
+    </div>
+    <div class="form-row">
+      <div class="form-group col-12 mb-2">
+        <small class="form-text text-muted">NIST profile means policy-based settings (strong random generation, fixed 256-bit size, and compliance-oriented defaults), not a different encryption algorithm.</small>
       </div>
     </div>
     <button type="submit" class="btn btn-primary">Generate New Pre-Shared Key</button>
@@ -40,6 +53,7 @@
       <br>
       <small>
         Name: <b>{{ generated.name }}</b>
+        | Profile: <b>{{ generated.psk_profile_label or generated.psk_profile or 'Custom' }}</b>
         {% if generated.purpose %}| Purpose: <b>{{ generated.purpose }}</b>{% endif %}
         | Mode: <b>{{ generated.rotation_mode|capitalize }}</b>
         | Rotation every: <b>{{ generated.rotation_interval or "-" }}</b>
@@ -64,7 +78,7 @@
       </div>
     </div>
     <div class="form-group">
-      <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by key, name, purpose, mode, user, or date">
+      <input type="text" id="filterInput" class="form-control mb-3" onkeyup="filterTable()" placeholder="Filter by key, name, profile, purpose, mode, user, or date">
     </div>
     <table id="pskTable" class="table table-bordered table-sm w-100">
       <thead>
@@ -86,9 +100,7 @@
         <tr data-psk-id="{{ entry.id }}">
           <td>
             <div class="font-weight-bold">{{ entry.name }}</div>
-            {% if entry.note %}
-            <div class="small text-muted">{{ entry.note }}</div>
-            {% endif %}
+            <div class="small text-info">{{ entry.psk_profile_label or entry.psk_profile or 'Custom' }}</div>
           </td>
           <td>
             <code
@@ -198,7 +210,7 @@
         <tr data-psk-id="${entry.id}">
           <td>
             <div class="font-weight-bold">${escapeHtml(entry.name)}</div>
-            ${entry.note ? `<div class="small text-muted">${escapeHtml(entry.note)}</div>` : ''}
+            <div class="small text-info">${escapeHtml(entry.psk_profile_label || entry.psk_profile || 'Custom')}</div>
           </td>
           <td>
             <code
@@ -262,6 +274,22 @@
       const el = document.getElementById('generated-psk');
       if (!el || !navigator.clipboard) return;
       navigator.clipboard.writeText(el.textContent.trim());
+    }
+
+    function applyPskProfilePreset() {
+      var profileSelect = document.getElementById('psk_profile');
+      var lengthInput = document.getElementById('length');
+      if (!profileSelect || !lengthInput) return;
+      var selected = profileSelect.options[profileSelect.selectedIndex];
+      var defaultLength = selected ? selected.getAttribute('data-default-length') : '';
+      var isCustom = (profileSelect.value || '').toLowerCase() === 'custom';
+
+      lengthInput.readOnly = !isCustom;
+      if (!isCustom && defaultLength) {
+        lengthInput.value = defaultLength;
+      } else if (isCustom && !lengthInput.value) {
+        lengthInput.value = '{{ default_length }}';
+      }
     }
 
     function copyPsk(el, idx) {
@@ -402,6 +430,11 @@
       var table = document.getElementById('pskTable');
       var tbody = table.getElementsByTagName('tbody')[0];
       allRows = Array.from(tbody.getElementsByTagName('tr'));
+      var profileSelect = document.getElementById('psk_profile');
+      if (profileSelect) {
+        profileSelect.addEventListener('change', applyPskProfilePreset);
+        applyPskProfilePreset();
+      }
       bindBusyButtons();
       updateRotationCountdowns();
       window.setInterval(updateRotationCountdowns, 1000);

@@ -11,6 +11,49 @@ from flask_login import current_user
 from user_models import get_user_by_id, get_user_by_username, get_username_by_id
 
 
+PSK_PROFILE_CUSTOM = "custom"
+PSK_PROFILE_AES_128 = "aes_128"
+PSK_PROFILE_AES_192 = "aes_192"
+PSK_PROFILE_AES_256 = "aes_256"
+PSK_PROFILE_NIST_HIGH_256 = "nist_high_256"
+
+PSK_PROFILE_DEFS = {
+    PSK_PROFILE_CUSTOM: {"label": "Custom", "fixed_bytes": None, "default_length": None},
+    PSK_PROFILE_AES_128: {"label": "AES-128", "fixed_bytes": 16, "default_length": 32},
+    PSK_PROFILE_AES_192: {"label": "AES-192", "fixed_bytes": 24, "default_length": 48},
+    PSK_PROFILE_AES_256: {"label": "AES-256", "fixed_bytes": 32, "default_length": 64},
+    PSK_PROFILE_NIST_HIGH_256: {"label": "NIST Profile (High, 256-bit)", "fixed_bytes": 32, "default_length": 64},
+}
+
+
+def _normalize_psk_profile(psk_profile):
+    normalized = (str(psk_profile or PSK_PROFILE_CUSTOM)).strip().lower()
+    if normalized not in PSK_PROFILE_DEFS:
+        return PSK_PROFILE_CUSTOM
+    return normalized
+
+
+def _psk_profile_label(psk_profile):
+    normalized = _normalize_psk_profile(psk_profile)
+    return PSK_PROFILE_DEFS.get(normalized, PSK_PROFILE_DEFS[PSK_PROFILE_CUSTOM])["label"]
+
+
+def _available_psk_profiles():
+    return [
+        {"value": key, "label": meta["label"], "default_length": meta["default_length"]}
+        for key, meta in PSK_PROFILE_DEFS.items()
+    ]
+
+
+def _ensure_preshared_key_schema(conn):
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(preshared_keys)")
+    cols = [row[1] for row in cur.fetchall()]
+    if "psk_profile" not in cols:
+        cur.execute("ALTER TABLE preshared_keys ADD COLUMN psk_profile TEXT DEFAULT 'custom'")
+    cur.execute("UPDATE preshared_keys SET psk_profile = 'custom' WHERE psk_profile IS NULL OR TRIM(psk_profile) = ''")
+
+
 def parse_duration_generic(s):
     if not s:
         raise ValueError("Empty duration")
@@ -48,6 +91,15 @@ def _token_bytes_for_length(length_chars):
 def _build_secret(length_chars):
     length_chars = _normalize_length(length_chars)
     return secrets.token_urlsafe(_token_bytes_for_length(length_chars))[:length_chars]
+
+
+def _build_secret_for_profile(length_chars, psk_profile):
+    normalized_profile = _normalize_psk_profile(psk_profile)
+    fixed_bytes = PSK_PROFILE_DEFS[normalized_profile]["fixed_bytes"]
+    if fixed_bytes is None:
+        return _build_secret(length_chars)
+    # For algorithm profiles, generate exact entropy and encode as hex.
+    return secrets.token_hex(int(fixed_bytes))
 
 
 def _parse_validity(validity):
@@ -121,6 +173,7 @@ def _api_psk_response(secret_value, row):
     response.headers["X-PSK-Id"] = str(row["id"])
     response.headers["X-PSK-Name"] = row["name"]
     response.headers["X-PSK-Length"] = str(len(secret_value or ""))
+    response.headers["X-PSK-Profile"] = _normalize_psk_profile(row.get("psk_profile"))
     rotation_mode = (row.get("rotation_mode") or "static").strip().lower()
     next_rotation_dt = _parse_dt(row.get("next_rotation_at"))
     rotation_remaining_seconds = -1 if rotation_mode != "rotating" else (_rotation_remaining_seconds(next_rotation_dt) or 0)
@@ -153,6 +206,7 @@ def _decorate_key_row(row):
     expired = expires_dt is not None and expires_dt < now
     revoked = bool(row["revoked"])
     rotation_mode = (row["rotation_mode"] or "static").strip().lower()
+    psk_profile = _normalize_psk_profile(row["psk_profile"] if "psk_profile" in row.keys() else PSK_PROFILE_CUSTOM)
     is_rotating = rotation_mode == "rotating"
     if revoked:
         status = "Revoked"
@@ -169,6 +223,8 @@ def _decorate_key_row(row):
         "secret_value": row["secret_value"] or "",
         "secret_value_short": _short_secret(row["secret_value"] or ""),
         "length": len(row["secret_value"] or ""),
+        "psk_profile": psk_profile,
+        "psk_profile_label": _psk_profile_label(psk_profile),
         "validity": row["validity"] or "",
         "purpose": row["purpose"] or "",
         "note": row["note"] or "",
@@ -208,6 +264,7 @@ def _short_secret(value):
 def _list_preshared_keys(owner_id=None):
     query = """
         SELECT id, name, secret_value, user_id, created_at, expires_at, last_used_at, revoked, validity, purpose, note,
+               psk_profile,
                rotation_mode, rotation_interval, last_rotated_at, next_rotation_at
         FROM preshared_keys
     """
@@ -218,6 +275,7 @@ def _list_preshared_keys(owner_id=None):
     query += " ORDER BY created_at DESC, id DESC"
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.row_factory = sqlite3.Row
+        _ensure_preshared_key_schema(conn)
         _rotate_due_keys(conn, owner_id=owner_id)
         rows = conn.execute(query, params).fetchall()
     return [_decorate_key_row(row) for row in rows]
@@ -238,13 +296,15 @@ def _log_event(event_type, resource_name, user_id, details=None):
         pass
 
 
-def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, rotation_interval):
+def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, rotation_interval, psk_profile):
     validity, seconds = _parse_validity(validity)
     rotation_interval, _rotation_seconds = _parse_rotation_interval(rotation_interval)
+    psk_profile = _normalize_psk_profile(psk_profile)
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=seconds) if seconds else None
-    secret_value = _build_secret(length_chars)
+    secret_value = _build_secret_for_profile(length_chars, psk_profile)
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
+        _ensure_preshared_key_schema(conn)
         existing = conn.execute(
             "SELECT id FROM preshared_keys WHERE user_id = ? AND name = ?",
             (user_id, name),
@@ -255,9 +315,10 @@ def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, 
             """
             INSERT INTO preshared_keys (
                 name, secret_value, user_id, created_at, expires_at, revoked, validity, purpose, note,
+                psk_profile,
                 rotation_mode, rotation_interval, last_rotated_at, next_rotation_at
             )
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 'static', ?, NULL, NULL)
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'static', ?, NULL, NULL)
             """,
             (
                 name,
@@ -268,6 +329,7 @@ def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, 
                 validity,
                 purpose or None,
                 note or None,
+                psk_profile,
                 rotation_interval,
             ),
         )
@@ -279,6 +341,8 @@ def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, 
         {
             "psk_id": psk_id,
             "purpose": purpose or "",
+            "psk_profile": psk_profile,
+            "psk_profile_label": _psk_profile_label(psk_profile),
             "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S") if expires_at else None,
             "rotation_mode": "static",
             "rotation_interval": rotation_interval,
@@ -291,6 +355,8 @@ def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, 
         "user_id": user_id,
         "purpose": purpose or "",
         "note": note or "",
+        "psk_profile": psk_profile,
+        "psk_profile_label": _psk_profile_label(psk_profile),
         "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S") if expires_at else None,
         "validity": validity,
@@ -370,7 +436,8 @@ def _fetch_psk_row_for_owner(conn, psk_id):
     conn.row_factory = sqlite3.Row
     return conn.execute(
         """
-        SELECT id, name, secret_value, user_id, created_at, expires_at, last_used_at, revoked, validity, purpose, note,
+     SELECT id, name, secret_value, user_id, created_at, expires_at, last_used_at, revoked, validity, purpose, note,
+         psk_profile,
                rotation_mode, rotation_interval, last_rotated_at, next_rotation_at
         FROM preshared_keys
         WHERE id = ?
@@ -397,7 +464,8 @@ def _lookup_preshared_key_for_token(key_name, verify_api_token, allow_inactive=F
         return None, (jsonify({"error": "Pre-shared key name is required"}), 400)
 
     query = """
-        SELECT id, name, secret_value, user_id, created_at, expires_at, last_used_at, revoked, validity, purpose, note,
+         SELECT id, name, secret_value, user_id, created_at, expires_at, last_used_at, revoked, validity, purpose, note,
+             psk_profile,
                rotation_mode, rotation_interval, last_rotated_at, next_rotation_at
         FROM preshared_keys
         WHERE name = ?
@@ -422,6 +490,7 @@ def _lookup_preshared_key_for_token(key_name, verify_api_token, allow_inactive=F
     query += " ORDER BY created_at DESC, id DESC"
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.row_factory = sqlite3.Row
+        _ensure_preshared_key_schema(conn)
         _rotate_due_keys(conn, owner_id=None if token_user.is_admin() else token_info["user_id"])
         rows = conn.execute(query, params).fetchall()
 
@@ -449,6 +518,8 @@ def _api_rotation_response(row, value=None):
         "id": row["id"],
         "name": row["name"],
         "user_id": row["user_id"],
+        "psk_profile": _normalize_psk_profile(row.get("psk_profile")),
+        "psk_profile_label": _psk_profile_label(row.get("psk_profile")),
         "rotation_mode": row.get("rotation_mode") or "static",
         "rotation_interval": row.get("rotation_interval") or "",
         "last_rotated_at": row.get("last_rotated_at"),
@@ -469,12 +540,22 @@ def preshared_keys():
         validity = request.form.get("validity", "").strip()
         rotation_interval = request.form.get("rotation_interval", "").strip()
         length_chars = request.form.get("length", "").strip()
+        psk_profile = _normalize_psk_profile(request.form.get("psk_profile", PSK_PROFILE_CUSTOM))
 
         if not name:
             name = f"psk-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
         try:
-            created = _create_preshared_key(current_user.id, name, purpose, note, validity, length_chars, rotation_interval)
+            created = _create_preshared_key(
+                current_user.id,
+                name,
+                purpose,
+                note,
+                validity,
+                length_chars,
+                rotation_interval,
+                psk_profile,
+            )
             session["generated_preshared_key"] = created
             flash("Pre-shared key created. Copy it now; the UI will not reveal it again after this page load.", "success")
             return redirect(url_for("preshared_keys"))
@@ -493,6 +574,8 @@ def preshared_keys():
         default_validity=current_app.config.get("PRESHARED_KEY_DEFAULT_VALIDITY", "60d"),
         default_length=current_app.config.get("PRESHARED_KEY_LENGTH", 48),
         default_rotation_interval=current_app.config.get("PRESHARED_KEY_DEFAULT_ROTATION_INTERVAL", "2m"),
+        psk_profiles=_available_psk_profiles(),
+        default_psk_profile=PSK_PROFILE_CUSTOM,
     )
 
 
@@ -659,12 +742,24 @@ def api_create_preshared_key(verify_api_token):
     validity = str(payload.get("validity") or request.form.get("validity") or "").strip()
     rotation_interval = str(payload.get("rotation_interval") or request.form.get("rotation_interval") or "").strip()
     length_chars = payload.get("length") or request.form.get("length") or current_app.config.get("PRESHARED_KEY_LENGTH", 48)
+    psk_profile = _normalize_psk_profile(
+        payload.get("psk_profile") or request.form.get("psk_profile") or PSK_PROFILE_CUSTOM
+    )
 
     if not name:
         name = f"psk-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
     try:
-        created = _create_preshared_key(token_info["user_id"], name, purpose, note, validity, length_chars, rotation_interval)
+        created = _create_preshared_key(
+            token_info["user_id"],
+            name,
+            purpose,
+            note,
+            validity,
+            length_chars,
+            rotation_interval,
+            psk_profile,
+        )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 409
     except Exception as exc:
@@ -680,6 +775,8 @@ def api_create_preshared_key(verify_api_token):
                 "user_id": created["user_id"],
                 "purpose": created["purpose"],
                 "note": created["note"],
+                "psk_profile": created["psk_profile"],
+                "psk_profile_label": created["psk_profile_label"],
                 "validity": created["validity"],
                 "rotation_mode": created["rotation_mode"],
                 "rotation_interval": created["rotation_interval"],

@@ -58,6 +58,7 @@ def migrate_db():
         validity TEXT,
         purpose TEXT,
         note TEXT,
+        psk_profile TEXT DEFAULT 'custom',
         rotation_mode TEXT DEFAULT 'static',
         rotation_interval TEXT,
         last_rotated_at DATETIME,
@@ -243,10 +244,12 @@ def migrate_db():
     ensure_column('preshared_keys', 'validity', 'TEXT')
     ensure_column('preshared_keys', 'purpose', 'TEXT')
     ensure_column('preshared_keys', 'note', 'TEXT')
+    ensure_column('preshared_keys', 'psk_profile', "TEXT DEFAULT 'custom'")
     ensure_column('preshared_keys', 'rotation_mode', "TEXT DEFAULT 'static'")
     ensure_column('preshared_keys', 'rotation_interval', 'TEXT')
     ensure_column('preshared_keys', 'last_rotated_at', 'DATETIME')
     ensure_column('preshared_keys', 'next_rotation_at', 'DATETIME')
+    cur.execute("UPDATE preshared_keys SET psk_profile = 'custom' WHERE psk_profile IS NULL OR TRIM(psk_profile) = ''")
 
     # Ensure unique usernames via index; warn if duplicates prevent creation
     def ensure_unique_usernames(cursor):
