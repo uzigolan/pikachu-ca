@@ -89,8 +89,13 @@
   -H "Content-Type: application/json" \
   -d '{"name":"device-001","purpose":"mqtt-bootstrap","validity":"30d","length":48,"rotation_interval":"2m"}' \
   https://{{ server_dns_name }}/api/preshared_keys</pre>
+            <pre>curl -k -X POST \
+        -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"device-001","psk_profile":"aes_256","validity":"30d","rotation_interval":"2m"}' \
+        https://{{ server_dns_name }}/api/preshared_keys</pre>
         </td>
-        <td>Enterprise only. Creates a named PSK for the token owner and returns the secret once. Optional fields: purpose, validity, length, rotation_interval.</td>
+          <td>Enterprise only. Creates a named PSK for the token owner and returns the secret once. Optional fields: purpose, validity, length, rotation_interval, psk_profile (<code>custom</code>, <code>aes_128</code>, <code>aes_192</code>, <code>aes_256</code>, <code>nist_high_256</code>). Response JSON also includes <code>psk_profile</code> and <code>psk_profile_label</code>.</td>
       </tr>
       <tr>
         <td>Get Pre-Shared Key by Name</td>
@@ -102,7 +107,7 @@
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
           https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
         </td>
-        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. The response headers include <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. The response headers include <code>X-PSK-Profile</code> and <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
       </tr>
       <tr>
         <td>Delete Pre-Shared Key by Name</td>
