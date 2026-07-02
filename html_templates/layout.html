@@ -38,6 +38,7 @@
       --danger: #b91c1c;
       --success: #15803d;
       --warning: #b45309;
+      --navbar-height: 70px;
     }
 
     body {
@@ -66,8 +67,12 @@
       border-bottom: 1px solid var(--border);
       box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
       backdrop-filter: blur(10px);
-      position: relative;
-      z-index: 1200;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      z-index: 2000;
     }
 
     .app-navbar .navbar-brand {
@@ -239,7 +244,7 @@
     }
 
     .app-shell {
-      padding: 28px 0 48px;
+      padding: calc(var(--navbar-height, 0px) + 28px) 0 48px;
     }
 
     .app-container {
@@ -982,7 +987,7 @@
     }
 
     @media (max-width: 768px) {
-      .app-shell { padding: 16px 0 32px; }
+      .app-shell { padding: calc(var(--navbar-height, 0px) + 16px) 0 32px; }
       .content-card { padding: 18px; }
       .page-title { font-size: 1.6rem; }
       .table-modern { border-spacing: 0 6px; }
@@ -996,7 +1001,7 @@
 </head>
 <body class="theme-{{ theme_style|default('modern') }} theme-color-{{ theme_color|default('snow') }}">
   <!-- Navigation Bar -->
-  <nav id="layout-navbar" class="navbar navbar-expand-lg navbar-light app-navbar mb-4">
+  <nav id="layout-navbar" class="navbar navbar-expand-lg navbar-light app-navbar">
     <a class="navbar-brand" href="/">
     <img
       src="{{ url_for('static', filename='favicon-32x32.png') }}"
@@ -1175,11 +1180,16 @@
   <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-  function scrollToLayoutButtons() {
+  function syncNavbarHeight() {
     var nav = document.getElementById("layout-navbar");
-    if (nav) {
-      nav.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!nav) {
+      return;
     }
+    document.documentElement.style.setProperty("--navbar-height", nav.offsetHeight + "px");
+  }
+
+  function scrollToLayoutButtons() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function toggleFloatingPaths() {
@@ -1207,7 +1217,11 @@
   }
 
   window.addEventListener("scroll", toggleFloatingMarkers);
+  window.addEventListener("resize", syncNavbarHeight);
+  document.addEventListener("DOMContentLoaded", syncNavbarHeight);
   document.addEventListener("DOMContentLoaded", toggleFloatingMarkers);
+  document.addEventListener("shown.bs.collapse", syncNavbarHeight);
+  document.addEventListener("hidden.bs.collapse", syncNavbarHeight);
   document.addEventListener("click", function(event) {
     var markers = document.getElementById("floatingMarkers");
     var paths = document.getElementById("floatingPaths");
