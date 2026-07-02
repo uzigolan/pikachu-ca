@@ -3354,7 +3354,10 @@ def download_pfx(cert_id):
 @app.route("/account", methods=["GET"])
 @login_required
 def account():
-    return render_template("account.html")
+    section = request.args.get("section", "password").strip().lower()
+    if section not in ("password", "appearance"):
+        section = "password"
+    return render_template("account.html", account_section=section)
 
 @app.route("/account/theme", methods=["POST"])
 @login_required
@@ -3373,23 +3376,23 @@ def account_theme():
         flash("Theme updated.", "success")
     else:
         flash("Theme update failed. Run migrate_db.py to add the custom_columns field.", "warning")
-    return redirect(url_for('account'))
+    return redirect(url_for('account', section='appearance'))
 
 @app.route("/change_password", methods=["POST"])
 @login_required
 def change_password():
     if getattr(current_user, 'auth_source', 'local') == 'ldap':
         flash('Cannot change password for LDAP users. Passwords are managed by your LDAP/Active Directory administrator.', 'warning')
-        return redirect(url_for('account'))
+        return redirect(url_for('account', section='password'))
     current_password = request.form.get("current_password", "").strip()
     new_password = request.form.get("new_password", "").strip()
     confirm_password = request.form.get("confirm_password", "").strip()
     if not current_user.check_password(current_password):
         flash("Current password is incorrect.", "error")
-        return redirect(url_for('account'))
+        return redirect(url_for('account', section='password'))
     if not new_password or new_password != confirm_password:
         flash("New passwords do not match or are empty.", "error")
-        return redirect(url_for('account'))
+        return redirect(url_for('account', section='password'))
     # Update password using user_models logic for persistent user status
     from werkzeug.security import generate_password_hash
     import sqlite3
@@ -3409,7 +3412,7 @@ def change_password():
         pass
     flash("Password changed successfully.", "success")
     app.logger.info(f"User {current_user.username} changed their password.")
-    return redirect(url_for('account'))
+    return redirect(url_for('account', section='password'))
 
 
 

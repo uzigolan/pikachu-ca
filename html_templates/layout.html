@@ -66,6 +66,8 @@
       border-bottom: 1px solid var(--border);
       box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
       backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 1200;
     }
 
     .app-navbar .navbar-brand {
@@ -97,12 +99,12 @@
     .ai-nav-link {
       display: inline-flex;
       align-items: center;
-      gap: 0.42rem;
+      gap: 0.22rem;
     }
 
     .ai-assistant-icon {
-      width: 0.92rem;
-      height: 0.92rem;
+      width: 1.08rem;
+      height: 1.08rem;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -117,6 +119,117 @@
       stroke-width: 1.8;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .account-nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .account-nav-link::after {
+      margin-left: 0.15rem;
+    }
+
+    .nav-version-text {
+      opacity: 0.9;
+      cursor: default;
+    }
+
+    .app-navbar .nav-link.nav-version-text:hover,
+    .app-navbar .nav-link.nav-version-text:focus {
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .account-menu-icon {
+      width: 0.95rem;
+      height: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .account-menu-dropdown {
+      display: block;
+    }
+
+    .account-menu-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .account-menu {
+      min-width: 250px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+      padding: 0.45rem;
+      z-index: 1210;
+    }
+
+    .account-menu-header {
+      padding: 0.55rem 0.6rem 0.45rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.35rem;
+    }
+
+    .account-menu-user {
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.15;
+    }
+
+    .account-menu-role {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-top: 0.15rem;
+    }
+
+    .account-menu .dropdown-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      border-radius: 10px;
+      font-weight: 600;
+      color: var(--text);
+      padding: 0.45rem 0.6rem;
+    }
+
+    .account-item-icon {
+      width: 0.95rem;
+      height: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: inherit;
+      flex: 0 0 auto;
+    }
+
+    .account-item-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .account-item-label {
+      line-height: 1.1;
+    }
+
+    .account-menu .dropdown-item:hover,
+    .account-menu .dropdown-item:focus {
+      background: #e8f3f1;
+      color: var(--text);
     }
 
     .app-navbar .nav-link:hover,
@@ -344,6 +457,43 @@
       color: #f8f9fa;
     }
 
+    body.theme-classic .account-menu {
+      background: #ffffff;
+      border-color: #d6d9de;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+    }
+
+    body.theme-classic .account-menu-header {
+      border-bottom-color: #e5e7eb;
+    }
+
+    body.theme-classic .account-menu-user {
+      color: #111827;
+    }
+
+    body.theme-classic .account-menu-role {
+      color: #6b7280;
+    }
+
+    body.theme-classic .account-menu .dropdown-item,
+    body.theme-classic .app-navbar .navbar-text .account-menu .dropdown-item,
+    body.theme-classic .app-navbar .navbar-text .account-menu .dropdown-item:visited,
+    body.theme-classic .app-navbar .navbar-text .account-menu .dropdown-item:focus {
+      color: #111827;
+    }
+
+    body.theme-classic .account-menu .dropdown-item:hover,
+    body.theme-classic .account-menu .dropdown-item:focus {
+      background: #edf2f7;
+      color: #111827;
+      text-decoration: none;
+    }
+
+    body.theme-classic .account-menu .dropdown-item.text-danger,
+    body.theme-classic .app-navbar .navbar-text .account-menu .dropdown-item.text-danger {
+      color: #b91c1c !important;
+    }
+
     body.theme-classic .app-navbar .nav-link.active,
     body.theme-classic .app-navbar .nav-link:hover {
       background: rgba(255, 255, 255, 0.15);
@@ -502,6 +652,30 @@
     body.theme-color-midnight .app-navbar .nav-link:hover {
       background: rgba(56, 189, 248, 0.15);
       color: #e2f6ff;
+    }
+
+    body.theme-color-midnight .account-menu {
+      background: rgba(15, 23, 42, 0.98);
+      border-color: #334155;
+      box-shadow: 0 16px 34px rgba(2, 6, 23, 0.62);
+    }
+
+    body.theme-color-midnight .account-menu-header {
+      border-bottom-color: #1f2937;
+    }
+
+    body.theme-color-midnight .account-menu-user {
+      color: #f8fafc;
+    }
+
+    body.theme-color-midnight .account-menu .dropdown-item {
+      color: #e2f6ff;
+    }
+
+    body.theme-color-midnight .account-menu .dropdown-item:hover,
+    body.theme-color-midnight .account-menu .dropdown-item:focus {
+      background: rgba(56, 189, 248, 0.16);
+      color: #ffffff;
     }
 
     body.theme-color-midnight .app-navbar .navbar-text {
@@ -847,8 +1021,8 @@
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/keys') %} active{% endif %}" href="/keys">Keys</a></li>
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/ra_policies') %} active{% endif %}" href="/ra_policies">Enrollment</a></li>
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/profiles') %} active{% endif %}" href="/profiles">Certificate Templates</a></li>
-          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/va') %} active{% endif %}" href="/va">VA(crl)</a></li>
-          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/ca') %} active{% endif %}" href="/ca">CA ({{ ca_mode }})</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/va') %} active{% endif %}" href="/va"><span class="d-block">VA</span><small class="d-block">CRL</small></a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/ca') %} active{% endif %}" href="/ca"><span class="d-block">CA</span><small class="d-block">{{ ca_mode }}</small></a></li>
           {% if current_user.is_authenticated and current_user.is_admin() and show_legacy_paths %}
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/x509_templates') %} active{% endif %}" href="/x509_templates">Templates</a></li>
           {% endif %}
@@ -858,17 +1032,11 @@
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/preshared_keys') %} active{% endif %}" href="/preshared_keys">PSK</a></li>
           {% if current_user.is_authenticated %}
           <li class="nav-item">
-            <a class="nav-link" href="javascript:void(0);" onclick="openConfig();">Config</a>
-          </li>
-          <li class="nav-item">
             <a class="nav-link ai-nav-link" href="https://chatgpt.com/g/g-685321c0890c81919b8ba960251c95ae-pkisquire-ca" target="_blank">
               <span class="ai-assistant-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
-                  <rect x="5" y="7" width="14" height="12" rx="3"></rect>
-                  <path d="M12 4v3"></path>
-                  <circle cx="9.2" cy="12" r="1"></circle>
-                  <circle cx="14.8" cy="12" r="1"></circle>
-                  <path d="M9 15h6"></path>
+                  <path d="M12 2.5L14.9 9.1L21.5 12L14.9 14.9L12 21.5L9.1 14.9L2.5 12L9.1 9.1L12 2.5Z" fill="currentColor" stroke="none" opacity="0.95"></path>
+                  <path d="M18.4 3.6L19.2 5.6L21.2 6.4L19.2 7.2L18.4 9.2L17.6 7.2L15.6 6.4L17.6 5.6L18.4 3.6Z" fill="currentColor" stroke="none" opacity="0.75"></path>
                 </svg>
               </span>
               <span>AI</span>
@@ -876,27 +1044,92 @@
           </li>
           {% endif %}
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/logs') %} active{% endif %}" href="/logs">Logs</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/about') %} active{% endif %}" href="/about">About</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('static', filename='help.pdf') }}" target="_blank">Help</a></li>
+          <li class="nav-item"><span class="nav-link nav-version-text">v{{ version }} | {{ app_edition|default('community')|capitalize }}</span></li>
+          <li class="nav-item dropdown account-menu-dropdown">
+            <a class="nav-link dropdown-toggle account-nav-link" href="#" id="accountMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Account menu">
+              <span class="account-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                  <circle cx="12" cy="8" r="4"></circle>
+                  <path d="M4 20c1.8-4.1 5-6.2 8-6.2s6.2 2.1 8 6.2"></path>
+                </svg>
+              </span>
+              <span>Account</span>
+            </a>
+            <div class="dropdown-menu dropdown-menu-right account-menu" aria-labelledby="accountMenuButton">
+              <div class="account-menu-header">
+                <div class="account-menu-user">{{ current_user.username }}</div>
+                <div class="account-menu-role">Role: {{ 'admin' if current_user.is_admin() else 'user' }}</div>
+              </div>
+              <a class="dropdown-item" href="{{ url_for('account', section='password') }}">
+                <span class="account-item-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                    <rect x="3.8" y="10.7" width="16.4" height="9.5" rx="2.2"></rect>
+                    <path d="M7.4 10.7V8a4.6 4.6 0 0 1 9.2 0v2.7"></path>
+                    <circle cx="12" cy="15.5" r="1.1"></circle>
+                  </svg>
+                </span>
+                <span class="account-item-label">Password</span>
+              </a>
+              <a class="dropdown-item" href="{{ url_for('account', section='appearance') }}">
+                <span class="account-item-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                    <circle cx="12" cy="12" r="3.1"></circle>
+                    <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1.2 1.2 0 0 1 0 1.6l-1.1 1.1a1.2 1.2 0 0 1-1.6 0l-.1-.1a1 1 0 0 0-1.1-.2a1 1 0 0 0-.6.9V20a1.2 1.2 0 0 1-1.2 1.2h-1.6A1.2 1.2 0 0 1 11.2 20v-.2a1 1 0 0 0-.6-.9a1 1 0 0 0-1.1.2l-.1.1a1.2 1.2 0 0 1-1.6 0L6.7 18a1.2 1.2 0 0 1 0-1.6l.1-.1a1 1 0 0 0 .2-1.1a1 1 0 0 0-.9-.6H6a1.2 1.2 0 0 1-1.2-1.2v-1.6A1.2 1.2 0 0 1 6 10.6h.2a1 1 0 0 0 .9-.6a1 1 0 0 0-.2-1.1l-.1-.1a1.2 1.2 0 0 1 0-1.6l1.1-1.1a1.2 1.2 0 0 1 1.6 0l.1.1a1 1 0 0 0 1.1.2a1 1 0 0 0 .6-.9V4A1.2 1.2 0 0 1 12.4 2.8H14A1.2 1.2 0 0 1 15.2 4v.2a1 1 0 0 0 .6.9a1 1 0 0 0 1.1-.2l.1-.1a1.2 1.2 0 0 1 1.6 0l1.1 1.1a1.2 1.2 0 0 1 0 1.6l-.1.1a1 1 0 0 0-.2 1.1a1 1 0 0 0 .9.6h.2a1.2 1.2 0 0 1 1.2 1.2v1.6a1.2 1.2 0 0 1-1.2 1.2h-.2a1 1 0 0 0-.9.6Z"></path>
+                  </svg>
+                </span>
+                <span class="account-item-label">Appearance</span>
+              </a>
+              <a class="dropdown-item" href="{{ url_for('users.api_tokens') }}">
+                <span class="account-item-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                    <path d="M7 7l-3 3l3 3"></path>
+                    <path d="M17 7l3 3l-3 3"></path>
+                    <path d="M10 19h4"></path>
+                  </svg>
+                </span>
+                <span class="account-item-label">API Tokens</span>
+              </a>
+              {% if current_user.is_admin() %}
+              <a class="dropdown-item" href="javascript:void(0);" onclick="openConfig();">
+                <span class="account-item-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                    <circle cx="12" cy="12" r="3.1"></circle>
+                    <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1.2 1.2 0 0 1 0 1.6l-1.1 1.1a1.2 1.2 0 0 1-1.6 0l-.1-.1a1 1 0 0 0-1.1-.2a1 1 0 0 0-.6.9V20a1.2 1.2 0 0 1-1.2 1.2h-1.6A1.2 1.2 0 0 1 11.2 20v-.2a1 1 0 0 0-.6-.9a1 1 0 0 0-1.1.2l-.1.1a1.2 1.2 0 0 1-1.6 0L6.7 18a1.2 1.2 0 0 1 0-1.6l.1-.1a1 1 0 0 0 .2-1.1a1 1 0 0 0-.9-.6H6a1.2 1.2 0 0 1-1.2-1.2v-1.6A1.2 1.2 0 0 1 6 10.6h.2a1 1 0 0 0 .9-.6a1 1 0 0 0-.2-1.1l-.1-.1a1.2 1.2 0 0 1 0-1.6l1.1-1.1a1.2 1.2 0 0 1 1.6 0l.1.1a1 1 0 0 0 1.1.2a1 1 0 0 0 .6-.9V4A1.2 1.2 0 0 1 12.4 2.8H14A1.2 1.2 0 0 1 15.2 4v.2a1 1 0 0 0 .6.9a1 1 0 0 0 1.1-.2l.1-.1a1.2 1.2 0 0 1 1.6 0l1.1 1.1a1.2 1.2 0 0 1 0 1.6l-.1.1a1 1 0 0 0-.2 1.1a1 1 0 0 0 .9.6h.2a1.2 1.2 0 0 1 1.2 1.2v1.6a1.2 1.2 0 0 1-1.2 1.2h-.2a1 1 0 0 0-.9.6Z"></path>
+                  </svg>
+                </span>
+                <span class="account-item-label">Config</span>
+              </a>
+              {% endif %}
+              {% if current_user.is_admin() %}
+                <a class="dropdown-item" href="/users/manage">
+                  <span class="account-item-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                      <circle cx="9" cy="8" r="3"></circle>
+                      <path d="M3.8 18c1.4-2.9 3.5-4.5 5.2-4.5s3.8 1.6 5.2 4.5"></path>
+                      <circle cx="17.5" cy="8.5" r="2.4"></circle>
+                      <path d="M14.9 17.7c.8-1.8 2-2.9 3.1-2.9s2.3 1.1 3.1 2.9"></path>
+                    </svg>
+                  </span>
+                  <span class="account-item-label">Manage Users</span>
+                </a>
+              {% endif %}
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item text-danger" href="{{ url_for('users.logout') }}" onclick="return confirm('Are you sure you want to sign out?');">
+                <span class="account-item-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                    <path d="M15.5 8.5l4 3.5l-4 3.5"></path>
+                    <path d="M19.2 12H9"></path>
+                    <path d="M12 5.2H6.8A1.8 1.8 0 0 0 5 7v10a1.8 1.8 0 0 0 1.8 1.8H12"></path>
+                  </svg>
+                </span>
+                <span class="account-item-label">Sign out</span>
+              </a>
+            </div>
+          </li>
         {% endif %}
       </ul>
-    <!-- New version badge to the right -->
-    <span class="navbar-text text-muted ml-3">
-      <span class="d-block"><a href="/about" class="text-muted">About</a> | <a href="{{ url_for('static', filename='help.pdf') }}" class="text-muted" target="_blank">Help</a></span>
-      <span class="d-block">v{{ version }} | {{ app_edition|default('community')|capitalize }}</span>
-      <span class="badge badge-light ml-2">
-        Theme: {{ theme_style|default('modern')|capitalize }} / {{ theme_color|default('snow')|capitalize }}
-      </span>
-    </span>
-    <!-- User info and actions -->
-    {% if current_user.is_authenticated %}
-      <span class="navbar-text ml-4">
-        <strong>User:</strong> {{ current_user.username }}
-        <span class="ml-2"><strong>Role:</strong> {{ 'admin' if current_user.is_admin() else 'user' }}</span>
-        <a href="{{ url_for('account') }}" class="btn btn-sm btn-ghost ml-2">Account</a>
-        {% if current_user.is_admin() %}
-          <a href="/users/manage" class="btn btn-sm btn-soft ml-2">Users</a>
-        {% endif %}
-      </span>
-    {% endif %}
     </div>
     {% endif %}
   </nav>
