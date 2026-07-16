@@ -3,6 +3,7 @@
 <div class="container mt-4">
     <h2>Login</h2>
     <form method="POST" action="{{ url_for('users.login') }}">
+        <input type="hidden" name="next" value="{{ next_url or '' }}">
         <div class="mb-3" style="max-width: 350px;">
             <label for="username" class="form-label">Username</label>
             <input type="text" class="form-control" id="username" name="username" required style="max-width: 300px;" data-testid="input-username">

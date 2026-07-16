@@ -1,6 +1,7 @@
 import secrets
 import hashlib
 import math
+from urllib.parse import urlparse
 from flask import Blueprint, render_template, redirect, url_for, flash, jsonify, request, session as flask_session, current_app, abort
 from flask_login import login_required, current_user, logout_user, login_user, user_logged_in, user_logged_out
 import uuid
@@ -33,6 +34,30 @@ def _get_default_new_user_role():
     if role not in ("user", "admin"):
         role = "user"
     return role
+
+
+def _safe_next_url(next_url):
+    """Return a local path-only redirect target or None."""
+    if not next_url:
+        return None
+    target = str(next_url).strip()
+    if not target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not target.startswith("/") or target.startswith("//"):
+        return None
+    if target == url_for('users.login'):
+        return None
+    return target
+
+
+def _current_request_target():
+    target = request.full_path or request.path or "/"
+    if target.endswith("?"):
+        target = target[:-1]
+    return target
 
 
 def register_login_signals(app):
@@ -220,7 +245,7 @@ def enforce_tracked_session():
         logout_user()
         flask_session.pop('sid', None)
         flash('You have been logged out by an administrator.', 'warning')
-        return redirect(url_for('users.login'))
+        return redirect(url_for('users.login', next=_current_request_target()))
     # Idle timeout logic
     last_activity = row[0]
     max_idle_str = current_app.config.get('MAX_IDLE_TIME', '1h')
@@ -249,7 +274,7 @@ def enforce_tracked_session():
         logout_user()
         flask_session.pop('sid', None)
         flash('You have been logged out due to inactivity.', 'warning')
-        return redirect(url_for('users.login'))
+        return redirect(url_for('users.login', next=_current_request_target()))
     # Only update last_activity if not idle
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE user_sessions SET last_activity = ? WHERE session_id = ?", (now_str, sid))
@@ -663,15 +688,19 @@ def register():
 
 @users_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    next_url = request.args.get("next", "").strip()
+    safe_next_url = _safe_next_url(next_url)
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(safe_next_url or url_for('dashboard'))
     if request.method == "POST":
+        next_url = (request.form.get("next", "") or request.args.get("next", "")).strip()
+        safe_next_url = _safe_next_url(next_url)
         ldap_enabled = bool(current_app.config.get("LDAP_ENABLED", False))
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         if not username or not password:
             flash("Username and password are required.", "error")
-            return render_template("login.html")
+            return render_template("login.html", next_url=next_url)
         from user_models import get_user_by_username, create_user_db, update_last_login
         user = get_user_by_username(username)
         if user:
@@ -688,7 +717,7 @@ def login():
                 if not ldap_enabled:
                     flash("Invalid username or password.", "error")
                     current_app.logger.warning(f"Failed login attempt for: {username} (LDAP disabled)")
-                    return render_template("login.html")
+                    return render_template("login.html", next_url=next_url)
                 from ldap_utils import ldap_authenticate
                 ldap_result = ldap_authenticate(username, password, current_app.config, current_app.logger)
                 if ldap_result:
@@ -698,7 +727,7 @@ def login():
                     ip_addr = request.headers.get('X-Forwarded-For', request.remote_addr)
                     log_user_event('login', user.id, {'username': user.username, 'by': user.id, 'actor_username': user.username, 'ip': ip_addr})
                     current_app.logger.info(f"User {username} authenticated via LDAP and synced to local DB.")
-                    return redirect(url_for('dashboard'))
+                    return redirect(safe_next_url or url_for('dashboard'))
                 else:
                     flash("Invalid username or password.", "error")
                     current_app.logger.warning(f"Failed login attempt for: {username} (LDAP)")
@@ -709,7 +738,7 @@ def login():
                 ip_addr = request.headers.get('X-Forwarded-For', request.remote_addr)
                 log_user_event('login', user.id, {'username': user.username, 'by': user.id, 'actor_username': user.username, 'ip': ip_addr})
                 current_app.logger.info(f"User {username} logged in from IP {ip_addr}")
-                return redirect(url_for('dashboard'))
+                return redirect(safe_next_url or url_for('dashboard'))
             else:
                 flash("Invalid username or password.", "error")
                 current_app.logger.warning(f"Failed login attempt for: {username}")
@@ -717,7 +746,7 @@ def login():
             if not ldap_enabled:
                 flash("Invalid username or password.", "error")
                 current_app.logger.warning(f"Failed login attempt for: {username} (local only; LDAP disabled)")
-                return render_template("login.html")
+                return render_template("login.html", next_url=next_url)
             from ldap_utils import ldap_authenticate
             ldap_result = ldap_authenticate(username, password, current_app.config, current_app.logger)
             if ldap_result:
@@ -732,14 +761,14 @@ def login():
                     ip_addr = request.headers.get('X-Forwarded-For', request.remote_addr)
                     log_user_event('login', user.id, {'username': user.username, 'by': user.id, 'actor_username': user.username, 'ip': ip_addr})
                     current_app.logger.info(f"User {username} authenticated via LDAP and synced to local DB.")
-                    return redirect(url_for('dashboard'))
+                    return redirect(safe_next_url or url_for('dashboard'))
                 else:
                     flash("LDAP authentication succeeded but local user could not be activated. Contact administrator.", "error")
                     current_app.logger.error(f"LDAP auth ok for {username} but local user creation/activation failed.")
             else:
                 flash("Invalid username or password.", "error")
                 current_app.logger.warning(f"Failed login attempt for: {username} (local + LDAP)")
-    return render_template("login.html")
+    return render_template("login.html", next_url=next_url)
 
 @users_bp.route('/logout')
 @login_required

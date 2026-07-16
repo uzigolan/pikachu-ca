@@ -1033,7 +1033,7 @@
           {% endif %}
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/events') %} active{% endif %}" href="/events">Events</a></li>
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/api') %} active{% endif %}" href="/api">APIs</a></li>
-          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/inspect') %} active{% endif %}" href="/inspect">Insect</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/inspect') %} active{% endif %}" href="/inspect">Inspect</a></li>
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/preshared_keys') %} active{% endif %}" href="/preshared_keys">PSK</a></li>
           {% if current_user.is_authenticated %}
           <li class="nav-item">
@@ -1152,7 +1152,7 @@
       <a class="floating-path-link" href="/va">VA(crl)</a>
       <a class="floating-path-link" href="/ca">CA</a>
       <a class="floating-path-link" href="/events">Events</a>
-      <a class="floating-path-link" href="/inspect">Insect</a>
+      <a class="floating-path-link" href="/inspect">Inspect</a>
       <a class="floating-path-link" href="/preshared_keys">PSK</a>
       <a class="floating-path-link" href="/logs">Logs</a>
     </div>
