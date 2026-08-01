@@ -28,6 +28,36 @@ If the repo name changes, update these URLs in:
 
 ---
 
+## AI Agent Integration (MCP)
+
+PKISquire CA ships a full **Model Context Protocol (MCP) server** — connect your AI assistant and manage the CA in natural language.
+
+```powershell
+# Install for GitHub Copilot (VS Code)
+PowerShell -ExecutionPolicy Bypass -File scripts\install\skills_and_mcp\install-copilot-vscode.ps1
+```
+
+Once installed, just ask:
+
+> *"pika, list the certificates signed this month"*
+> *"pikachu, generate an EC key and sign a new cert for device-001"*
+> *"show me the dashboard stats"*
+
+**63 MCP tools** cover 100% of the REST API — certificates, keys, CSRs, profiles, RA policies, users, tokens, challenge passwords, PSKs, events, dashboard, CA/VA, OCSP, EST, inspection, config, logs, and more.
+
+| What | Details |
+|---|---|
+| MCP server | `pki_mcp/` — dedicated isolated venv, no admin required |
+| Skill | `skills/rad-pki-operations/` — operational expertise + golden rules for the AI |
+| Trigger words | `pikachu`, `pika`, `pkisquire`, `the CA`, `the PKI` |
+| Install page | `/mcp-install` in the web UI |
+| Coverage map | `pki_mcp/COVERAGE.md` |
+| Supported clients | GitHub Copilot (VS Code + JetBrains), Claude Desktop, any MCP client |
+
+See `pki_mcp/INSTALL.md` or the **MCP** link in the web UI navbar for full installation instructions.
+
+---
+
 ## Overview
 
 PKISquire CA provides certificate lifecycle management for devices and services:
@@ -100,7 +130,8 @@ Enterprise-only features include:
 | Logs (`/logs`) | Yes | Yes |
 | User management (`/users/manage`, admin) | Yes | Yes |
 | Certificate issuance/revocation/CRL | Yes | Yes |
-| Automated tests (UI/API reports) | Yes | Yes |
+| Automated tests (UI/API/MCP reports) | Yes | Yes |
+| **AI Agent / MCP server (63 tools)** | **Yes** | **Yes** |
 | HashiCorp Vault integration | No | Yes |
 | Multi-tenant RBAC | Yes | Yes |
 | SCEP enrollment | No | Yes |
@@ -117,6 +148,7 @@ Enterprise-only features include:
 ## Features
 
 - **Web UI + REST API** for day-to-day certificate operations
+- **AI Agent / MCP integration** — 63 tools, natural language CA management via GitHub Copilot, Claude, and more
 - **Issuance & revocation** with automated CRL generation
 - **Protocol support:** SCEP and EST enrollment; OCSP validation
 - **HashiCorp Vault integration** for CA key isolation and signing
