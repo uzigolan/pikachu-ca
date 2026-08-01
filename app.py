@@ -498,6 +498,11 @@ app.register_blueprint(x509_profiles_bp)
 app.register_blueprint(x509_keys_bp)
 app.register_blueprint(x509_requests_bp)
 app.register_blueprint(events_bp)
+
+# JSON REST API v1 (token-authenticated, used by pki-mcp and external integrations)
+from api_v1 import bp as api_v1_bp
+app.register_blueprint(api_v1_bp)
+
 if app.config["SCEP_ENABLED"] and feature_enabled("scep"):
     app.register_blueprint(scep_app)
 # ---------- Helper Functions ----------
@@ -1809,9 +1814,11 @@ def api_doc():
 @app.route("/about")
 @login_required
 def about():
+    mcp_report = _latest_report_path("pikachu_test_mcp_*.html")
     return render_template(
         "about.html",
         safety_reports_enabled=bool(app.config.get("SAFETY_REPORTS_ENABLED", False)),
+        mcp_report_exists=bool(mcp_report and mcp_report.exists()),
     )
 
 @app.route("/favicon.ico")
@@ -2067,6 +2074,44 @@ def latest_api_report():
     if not report_path or not report_path.exists():
         abort(404)
     return send_file(report_path, mimetype="text/html")
+
+
+@app.route("/reports/mcp/latest")
+@login_required
+def latest_mcp_report():
+    report_path = _latest_report_path("pikachu_test_mcp_*.html")
+    if not report_path or not report_path.exists():
+        html = """<!doctype html><html><head><meta charset="utf-8">
+<title>MCP Test Report — Not Yet Generated</title>
+<style>body{font-family:Segoe UI,sans-serif;margin:40px;color:#1f2933;background:#f8fafc}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;max-width:640px}
+code{background:#f3f4f7;padding:2px 6px;border-radius:4px;font-family:Consolas,monospace}
+</style></head><body><div class="card">
+<h2>MCP Test Report — Not Yet Generated</h2>
+<p>No <code>pikachu_test_mcp_*.html</code> file found in <code>tests_repo/reports/</code>.</p>
+<p>Run the MCP test suite from the repo root:</p>
+<pre style="background:#0f172a;color:#e2e8f0;padding:14px;border-radius:8px">
+.venv\\Scripts\\pytest.exe tests_repo/test_mcp.py \\
+    --capture=tee-sys \\
+    --self-contained-html \\
+    --html=tests_repo/reports/pikachu_test_mcp_$(date +%Y%m%d_%H%M%S).html
+</pre>
+<p><a href="/about">← Back to About</a></p>
+</div></body></html>"""
+        return html, 200, {"Content-Type": "text/html"}
+    return send_file(report_path, mimetype="text/html")
+
+
+@app.route("/mcp-install")
+@login_required
+def mcp_install():
+    from pki_mcp.version import SERVER_VERSION, SKILL_VERSION, SKILL_NAME
+    return render_template(
+        "mcp_install.html",
+        mcp_server_version=SERVER_VERSION,
+        skill_name=SKILL_NAME,
+        skill_version=SKILL_VERSION,
+    )
 
 
 # ---------- Validity Endpoint ----------

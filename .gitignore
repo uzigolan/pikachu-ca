@@ -1,12 +1,40 @@
+# Python
 *.pyc
 __pycache__/
-logs/
-*.db
-.env
-*.log
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+pki_mcp/.venv/
+pki_mcp/.python/
+
+# IDE / Editor
+.vscode/
+.idea/
 *.code-workspace
-openscep/
-temp_unused/
+
+# Logs
+logs/
+*.log
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+.mcp-stdio.env
+.mcp-http.env
+
+# Database files
+*.db
+db/*.db
+db/*.sqlite
+db/*.sqlite3
+db/pki.sqlite
+
+# PKI key / cert material
 pki-https/*.crt
 pki-https/*.key
 pki-https/*.pem
@@ -17,16 +45,31 @@ pki-subca/*.key
 pki-subca/*.crt
 pki-subca/dumps/*
 pki-root/*.crt
-db/*.db
-db/*.sqlite
-db/*.sqlite3
-db/pki.sqlite
-db_tools/*
-x509_profiles/*
-tests/results/*
-security/history/*
 pki-misc/est_cert_chain.p7
 pki-subca/rad_ca_sub_rsa.srl
+
+# X.509 profiles and templates (user-generated)
+x509_profiles/*
+
+# Test results and old reports
+tests/results/*
+tests_repo/reports/pikachu_test_ui_full_*.html
+tests_repo/reports/pikachu_test_api_full_*.html
+tests_repo/reports/pikachu_test_mcp_*.html
+tests_repo/reports/test_mcp_*.html
+
+# Security report history
+security/history/*
+
+# Build / packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# Misc
+openscep/
+temp_unused/
+db_tools/*
 
 # Local help symlink/file (do not track)
 static/help.pdf

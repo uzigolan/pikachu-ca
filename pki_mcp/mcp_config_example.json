@@ -1,0 +1,52 @@
+﻿{
+  "_comment": "Example MCP server configurations. Copy the relevant block into your client config.",
+
+  "claude_desktop": {
+    "_path": "~/Library/Application Support/Claude/claude_desktop_config.json  (macOS)",
+    "mcpServers": {
+      "pki-squire": {
+        "command": "python",
+        "args": ["-m", "pki_mcp.server", "--transport", "stdio"],
+        "cwd": "C:\\Users\\uzi\\Downloads\\projects\\PKI",
+        "env": {
+          "PKI_BASE_URL": "https://localhost:443",
+          "PKI_TOKEN": "<your-api-token>",
+          "PKI_VERIFY_SSL": "false"
+        }
+      }
+    }
+  },
+
+  "vscode_copilot": {
+    "_path": ".vscode/mcp.json  (in the workspace root)",
+    "servers": {
+      "pki-squire": {
+        "type": "stdio",
+        "command": "python",
+        "args": ["-m", "pki_mcp.server", "--transport", "stdio"],
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PKI_BASE_URL": "https://localhost:443",
+          "PKI_TOKEN": "${input:pkiToken}",
+          "PKI_VERIFY_SSL": "false"
+        }
+      }
+    },
+    "inputs": [
+      {
+        "id": "pkiToken",
+        "type": "promptString",
+        "description": "PKI Squire API Token",
+        "password": true
+      }
+    ]
+  },
+
+  "sse_remote": {
+    "_description": "Start the MCP server in HTTP mode, then point any MCP client at http://<host>:8080/mcp",
+    "start_command": "PKI_BASE_URL=https://localhost:443 PKI_TOKEN=<token> PKI_VERIFY_SSL=false python -m pki_mcp.server --transport HTTP --port 8080",
+    "client_url": "http://localhost:8080/mcp"
+  }
+}
+
+

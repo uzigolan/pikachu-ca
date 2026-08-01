@@ -1037,6 +1037,22 @@
           <li class="nav-item"><a class="nav-link{% if request.path.startswith('/preshared_keys') %} active{% endif %}" href="/preshared_keys">PSK</a></li>
           {% if current_user.is_authenticated %}
           <li class="nav-item">
+            <a class="nav-link ai-nav-link{% if request.path.startswith('/mcp-install') %} active{% endif %}" href="/mcp-install">
+              <span class="ai-assistant-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+                  <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+                  <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+                  <circle cx="17.5" cy="17.5" r="3.5"></circle>
+                </svg>
+              </span>
+              <span>MCP</span>
+            </a>
+          </li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/logs') %} active{% endif %}" href="/logs">Logs</a></li>
+          {% if current_user.is_authenticated %}
+          <li class="nav-item">
             <a class="nav-link ai-nav-link" href="https://chatgpt.com/g/g-685321c0890c81919b8ba960251c95ae-pkisquire-ca" target="_blank">
               <span class="ai-assistant-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img" focusable="false" aria-label="">
@@ -1048,9 +1064,8 @@
             </a>
           </li>
           {% endif %}
-          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/logs') %} active{% endif %}" href="/logs">Logs</a></li>
-          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/about') %} active{% endif %}" href="/about">About</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('static', filename='help.pdf') }}" target="_blank">Help</a></li>
+          <li class="nav-item"><a class="nav-link{% if request.path.startswith('/about') %} active{% endif %}" href="/about">About</a></li>
           <li class="nav-item"><span class="nav-link nav-version-text">v{{ version }} | {{ app_edition|default('community')|capitalize }}</span></li>
           <li class="nav-item dropdown account-menu-dropdown">
             <a class="nav-link dropdown-toggle account-nav-link" href="#" id="accountMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Account menu">

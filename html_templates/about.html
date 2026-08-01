@@ -148,6 +148,11 @@
               <strong>API Test Report (Latest)</strong><br>
               <small class="text-muted">API and protocol flow report</small>
             </a>
+            <a href="{{ url_for('latest_mcp_report') }}" target="_blank" class="list-group-item list-group-item-action{% if not mcp_report_exists %} disabled text-muted{% endif %}">
+              <strong>MCP Test Report (Latest)</strong>
+              {% if not mcp_report_exists %}<span class="badge badge-secondary ml-1">not yet generated</span>{% endif %}<br>
+              <small class="text-muted">MCP tool layer and API endpoint coverage report</small>
+            </a>
             <a href="{{ url_for('tests_readme') }}" target="_blank" class="list-group-item list-group-item-action">
               <strong>Tests README</strong><br>
               <small class="text-muted">How to run UI/API and protocol test suites</small>

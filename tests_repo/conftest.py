@@ -25,3 +25,5 @@ def pytest_configure(config):
     metadata = getattr(config, "_metadata", None)
     if isinstance(metadata, dict):
         metadata["Local time"] = local_ts
+    # Register custom marks
+    config.addinivalue_line("markers", "live: marks tests that require a running PKI server (set PKI_MCP_LIVE=1)")
