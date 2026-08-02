@@ -101,7 +101,22 @@ if [[ ! -f "${VENV_PYTHON}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Decide whether to reuse or recollect config
+# SELinux: allow systemd to exec the venv Python (home dirs blocked by default)
+# ---------------------------------------------------------------------------
+if command -v getenforce &>/dev/null && [[ "$(getenforce 2>/dev/null)" != "Disabled" ]]; then
+    VENV_BIN="${PKI_ROOT}/pki_mcp/.venv/bin"
+    if command -v semanage &>/dev/null; then
+        # Persistent across restorecon
+        semanage fcontext -a -t bin_t "${VENV_BIN}(/.*)?" 2>/dev/null || \
+        semanage fcontext -m -t bin_t "${VENV_BIN}(/.*)?" 2>/dev/null || true
+        restorecon -Rv "${VENV_BIN}" 2>/dev/null || true
+        echo "  SELinux: set bin_t context on ${VENV_BIN} (semanage + restorecon)"
+    else
+        # Non-persistent fallback; survives until restorecon is run
+        chcon -R -t bin_t "${VENV_BIN}" 2>/dev/null || true
+        echo "  SELinux: set bin_t context on ${VENV_BIN} (chcon; install policycoreutils-python-utils for persistence)"
+    fi
+fi
 # ---------------------------------------------------------------------------
 USE_SAVED=false
 if [[ "${RECONFIGURE}" == false && -f "${ENV_FILE}" ]]; then
