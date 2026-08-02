@@ -267,8 +267,8 @@ fi
 # Recompute venv path in case PKI_ROOT was changed in section 3
 VENV_PYTHON="${PKI_ROOT}/pki_mcp/.venv/bin/python"
 
-# ---------------------------------------------------------------------------
-# Ensure service user exists
+# Standard RHEL/Rocky sysconfig location -- always readable by systemd (SELinux-safe)
+SYSCONFIG_FILE="/etc/sysconfig/pki-mcp"
 # ---------------------------------------------------------------------------
 if ! id -u "${SERVICE_USER}" &>/dev/null; then
     echo "Creating system user '${SERVICE_USER}' ..."
@@ -278,6 +278,12 @@ fi
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${PKI_ROOT}" 2>/dev/null || true
 # Protect the token file from other users
 chmod 600 "${ENV_FILE}" 2>/dev/null || true
+
+# Copy env to SELinux-safe sysconfig location for systemd to read
+cp "${ENV_FILE}" "${SYSCONFIG_FILE}"
+chmod 640 "${SYSCONFIG_FILE}"
+chown root:"${SERVICE_USER}" "${SYSCONFIG_FILE}"
+echo "  sysconfig -> ${SYSCONFIG_FILE}"
 
 # ---------------------------------------------------------------------------
 # Write systemd unit (substitute actual paths into template)

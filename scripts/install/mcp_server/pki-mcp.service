@@ -10,8 +10,8 @@ User=pki
 Group=pki
 WorkingDirectory=/opt/pki
 
-# Load env vars from .mcp-http.env (KEY=VALUE pairs, no export prefix)
-EnvironmentFile=/opt/pki/.mcp-http.env
+# Standard RHEL/Rocky location -- SELinux-safe, readable by systemd
+EnvironmentFile=/etc/sysconfig/pki-mcp
 
 ExecStart=/opt/pki/pki_mcp/.venv/bin/python \
     -m pki_mcp.server \
@@ -28,8 +28,6 @@ SyslogIdentifier=pki-mcp
 # Harden the process
 NoNewPrivileges=yes
 PrivateTmp=yes
-ProtectSystem=strict
-ReadWritePaths=/opt/pki/logs
 
 [Install]
 WantedBy=multi-user.target
