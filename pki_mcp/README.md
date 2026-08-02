@@ -90,21 +90,37 @@ carries `command`/`args`/`cwd`/`env`:
 
 ### HTTP (HTTP) — shared server
 
-Start once; multiple clients connect to `http://<host>:<port>/HTTP`:
+Start once on a server; multiple clients connect to `https://<host>:<port>/mcp`.
 
+**Authentication uses two headers:**
+
+| Header | Purpose | Set by |
+|---|---|---|
+| `Authorization: Bearer <mcp-token>` | Gates access to the MCP server | Admin (from install output) |
+| `X-PKI-Token: <personal-pki-token>` | Forwarded to the PKI CA backend | Each individual client |
+
+The PKI token is **not** stored on the MCP server — every request must carry the client's own token so the PKI server audit log shows real user attribution.
+
+**Start the server (Windows — interactive):**
 ```powershell
-$env:PKI_BASE_URL = "https://pki-server:443"
-$env:PKI_TOKEN    = "<admin-token>"
-PowerShell -ExecutionPolicy Bypass -File scripts\install\mcp_server\install-HTTP-mcp-server.ps1
+PowerShell -ExecutionPolicy Bypass -File scripts\install\mcp_server\install-http-mcp-server.ps1
 ```
 
-Client config:
+**Start the server (Linux — systemd service):**
+```bash
+sudo bash scripts/install/mcp_server/install-mcp-service.sh
+```
+
+Client config (each user sets their own `X-PKI-Token`):
 
 ```json
 {
   "type": "http",
-  "url": "http://localhost:8080/mcp",
-  "headers": { "Authorization": "Bearer <PKI_TOKEN>" }
+  "url": "https://pki-server:444/mcp",
+  "headers": {
+    "Authorization": "Bearer <shared-mcp-token>",
+    "X-PKI-Token":   "<your-personal-pki-api-token>"
+  }
 }
 ```
 
@@ -112,15 +128,31 @@ Client config:
 
 ## Environment variables
 
+### MCP server
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `PKI_BASE_URL` | ✅ | `https://localhost:443` | PKI Squire CA base URL |
-| `PKI_TOKEN` | ✅ | — | API token (Bearer) |
 | `PKI_VERIFY_SSL` | — | `true` | `false` to skip SSL verification (self-signed certs) |
-| `MCP_TRANSPORT` | — | `stdio` | `stdio` or `HTTP` |
+| `MCP_TRANSPORT` | — | `stdio` | `stdio` or `http` |
 | `MCP_HOST` | — | `0.0.0.0` | HTTP bind host |
 | `MCP_PORT` | — | `8080` | HTTP port |
 | `MCP_NAME` | — | `PKI Squire MCP` | Display name shown in the IDE |
+| `MCP_AUTH_TOKEN` | — | — | Shared Bearer token clients must send (empty = open) |
+| `MCP_READONLY_TOKEN` | — | — | Second accepted Bearer token (read-only use) |
+| `MCP_SSL_CERTFILE` | — | — | Path to TLS certificate PEM (enables HTTPS) |
+| `MCP_SSL_KEYFILE` | — | — | Path to TLS private key PEM |
+
+> `PKI_TOKEN` is **not** a server setting. In HTTP mode each client supplies its own
+> PKI API token via the `X-PKI-Token` request header. In stdio mode, the token lives
+> in the IDE config `env` block.
+
+### Client (per-user, stored in the IDE config)
+
+| Header | Description |
+|---|---|
+| `Authorization: Bearer <mcp-token>` | Shared MCP server access token (from install output) |
+| `X-PKI-Token: <personal-token>` | Your personal PKI API token — identifies you in the audit log |
 
 ---
 
@@ -180,24 +212,19 @@ loaded skill (in the IDE) and the server's copy.
 ## Running directly (without an IDE)
 
 ```powershell
-# stdio — pipe through an MCP client or test with mcp dev
-$env:PKI_BASE_URL = "https://localhost:443"
-$env:PKI_TOKEN    = "<token>"
-$env:PKI_VERIFY_SSL = "false"
-.\.venv\Scripts\python.exe -m pki_mcp.server --transport stdio
+# stdio
+$env:PKI_BASE_URL    = "https://localhost:443"
+$env:PKI_VERIFY_SSL  = "false"
+.venv\Scripts\python.exe -m pki_mcp.server --transport stdio
+# Note: set PKI_TOKEN in the IDE env block, not on the server
 
-# HTTP
-.\.venv\Scripts\python.exe -m pki_mcp.server --transport HTTP --port 8080
+# HTTP (Windows)
+.venv\Scripts\python.exe -m pki_mcp.server --transport http --port 8080
 
-# List all registered tools
-.\.venv\Scripts\python.exe -c "
-import asyncio, os
-os.environ['PKI_TOKEN']='x'; os.environ['PKI_BASE_URL']='https://localhost:443'
-from pki_mcp.server import build_server
-async def main():
-    mcp, _ = build_server()
-    for t in await mcp.list_tools(): print(t.name)
-asyncio.run(main())
+# HTTP with TLS
+.venv\Scripts\python.exe -m pki_mcp.server --transport http --port 444 \
+    --ssl-certfile pki-https/server.crt --ssl-keyfile pki-https/server.key
+```
 "
 ```
 
