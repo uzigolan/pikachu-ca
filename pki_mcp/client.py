@@ -7,10 +7,17 @@ The caller (MCP tool) is responsible for formatting the response as a string.
 
 from __future__ import annotations
 
+import contextvars
 import json
 from typing import Any
 
 import httpx
+
+# Set by the HTTP auth middleware when a client passes X-PKI-Token.
+# Allows per-client attribution in the PKI server audit log.
+request_pki_token: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "request_pki_token", default=None
+)
 
 
 class PKIError(Exception):
@@ -37,6 +44,10 @@ class PKIClient:
         )
 
     async def _request(self, method: str, path: str, **kwargs) -> dict:
+        override = request_pki_token.get()
+        if override:
+            # Per-request token overrides the shared server token for this call
+            kwargs["headers"] = {**kwargs.get("headers", {}), "Authorization": f"Bearer {override}"}
         try:
             resp = await self._client.request(method, path, **kwargs)
         except httpx.RequestError as exc:

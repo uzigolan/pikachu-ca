@@ -3,10 +3,11 @@ PKI Squire MCP Server entry point.
 
 Usage:
     # stdio (for Claude Desktop / VS Code Copilot):
-    PKI_BASE_URL=https://localhost:5443 PKI_TOKEN=<token> python -m pki_mcp.server
+    PKI_BASE_URL=https://localhost:5443 python -m pki_mcp.server
 
     # HTTP (for remote / multi-client access):
-    PKI_BASE_URL=https://localhost:443 PKI_TOKEN=<token> \\
+    # No PKI_TOKEN on the server -- each client passes X-PKI-Token per request.
+    PKI_BASE_URL=https://localhost:443 \\
         python -m pki_mcp.server --transport http --port 8080
 
     # Both transports via env:
@@ -21,7 +22,7 @@ from typing import Any
 
 from mcp.server.mcpserver.server import MCPServer as FastMCP
 
-from .client import PKIClient
+from .client import PKIClient, request_pki_token
 from .config import settings
 from .tools import register_all_tools
 
@@ -56,25 +57,44 @@ def _make_auth_middleware(app: Any, tokens: set[str]) -> Any:
                 })
                 await send({"type": "http.response.body", "body": body})
                 return
+
+            # Every client must supply its own PKI API token.
+            pki_token = next(
+                (v.decode("utf-8", errors="replace") for k, v in raw_headers
+                 if k.lower() == b"x-pki-token"),
+                "",
+            )
+            if not pki_token:
+                body = b'{"error":"X-PKI-Token header is required"}'
+                await send({
+                    "type": "http.response.start",
+                    "status": 401,
+                    "headers": [
+                        [b"content-type", b"application/json"],
+                        [b"content-length", str(len(body)).encode()],
+                    ],
+                })
+                await send({"type": "http.response.body", "body": body})
+                return
+
+            reset_token = request_pki_token.set(pki_token)
+            try:
+                await app(scope, receive, send)
+            finally:
+                request_pki_token.reset(reset_token)
+            return
+
         await app(scope, receive, send)
 
     return _middleware
 
 
 def build_server() -> tuple[FastMCP, PKIClient]:
-    if not settings.PKI_TOKEN:
-        print(
-            "ERROR: PKI_TOKEN environment variable is not set.\n"
-            "       Create an API token in the PKI UI (Account → API Tokens)\n"
-            "       and export it before starting the MCP server.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
+    # No shared PKI_TOKEN — every HTTP request must carry X-PKI-Token.
     mcp = FastMCP(settings.MCP_NAME)
     client = PKIClient(
         base_url=settings.PKI_BASE_URL,
-        token=settings.PKI_TOKEN,
+        token="",
         verify_ssl=settings.ssl_verify(),
     )
     register_all_tools(mcp, client)
@@ -119,9 +139,10 @@ def main() -> None:
         scheme = "https" if (args.ssl_certfile or args.ssl_keyfile) else "http"
         print(
             f"Starting PKI Squire MCP server (HTTP) on {args.host}:{args.port} ...\n"
-            f"  Client URL : {scheme}://<host>:{args.port}/mcp\n"
-            f"  Auth       : {'token required' if auth_tokens else 'none (open)'}\n"
-            f"  TLS        : {'yes (' + str(args.ssl_certfile) + ')' if args.ssl_certfile else 'no'}",
+            f"  Client URL   : {scheme}://<host>:{args.port}/mcp\n"
+            f"  Auth         : {'token required' if auth_tokens else 'none (open)'}\n"
+            f"  TLS          : {'yes (' + str(args.ssl_certfile) + ')' if args.ssl_certfile else 'no'}\n"
+            f"  Attribution  : clients MUST send X-PKI-Token: <their-pki-api-token>",
             file=sys.stderr,
         )
 

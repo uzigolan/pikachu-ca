@@ -1,0 +1,35 @@
+[Unit]
+Description=PKI Squire MCP HTTP Server
+Documentation=file:///opt/pki/pki_mcp/README.md
+After=network.target pki-server.service
+Wants=pki-server.service
+
+[Service]
+Type=simple
+User=pki
+Group=pki
+WorkingDirectory=/opt/pki
+
+# Load env vars from .mcp-http.env (KEY=VALUE pairs, no export prefix)
+EnvironmentFile=/opt/pki/.mcp-http.env
+
+ExecStart=/opt/pki/pki_mcp/.venv/bin/python \
+    -m pki_mcp.server \
+    --transport http \
+    --host ${MCP_HOST} \
+    --port ${MCP_PORT}
+
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pki-mcp
+
+# Harden the process
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/pki/logs
+
+[Install]
+WantedBy=multi-user.target

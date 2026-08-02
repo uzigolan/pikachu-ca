@@ -39,8 +39,10 @@ if (-not $Reconfigure -and (Test-KeepHttpConfig)) {
     Write-Host "  ┌─────────────────────────────────────────────────────┐"
     Write-Host "  │  Section 1 of 2  --  Pikachu CA server              │"
     Write-Host "  └─────────────────────────────────────────────────────┘"
-    Write-Host "  URL and API token for the Flask PKI/CA server."
-    $creds = Prompt-PkiCredentials
+    Write-Host "  Base URL of the Flask PKI/CA server."
+    Write-Host "  (No server-side token needed: each client supplies its own via X-PKI-Token)"
+    $pkiUrl = (Read-Host "  Pikachu CA base URL [https://localhost:443]").Trim()
+    if (-not $pkiUrl) { $pkiUrl = 'https://localhost:443' }
 
     Write-Host ""
     Write-Host "  ┌─────────────────────────────────────────────────────┐"
@@ -60,8 +62,7 @@ if (-not $Reconfigure -and (Test-KeepHttpConfig)) {
     $toks = Invoke-McpTokensPrompt
 
     $cfg = [ordered]@{
-        PKI_BASE_URL       = $creds.BaseUrl
-        PKI_TOKEN          = $creds.Token
+        PKI_BASE_URL       = $pkiUrl
         PKI_VERIFY_SSL     = 'false'
         MCP_HOST           = $hostStr
         MCP_PORT           = $portStr
@@ -80,16 +81,20 @@ if (-not $Reconfigure -and (Test-KeepHttpConfig)) {
     Write-Host ""
     Write-Host "----------------------------------------------------------------"
     Write-Host "  MCP HTTP client configuration:"
-    Write-Host "  URL          : $mcpUrl"
-    Write-Host "  RW token     : $($toks.RwToken)"
-    Write-Host "  RO token     : $($toks.RoToken)"
+    Write-Host "  URL      : $mcpUrl"
+    Write-Host "  RW token : $($toks.RwToken)"
+    Write-Host "  RO token : $($toks.RoToken)"
     Write-Host ""
-    Write-Host "  VS Code mcp.json (read-write):"
+    Write-Host "  VS Code mcp.json:"
     Write-Host "    `"pki-mcp`": {"
     Write-Host "      `"type`": `"http`","
     Write-Host "      `"url`": `"$mcpUrl`","
-    Write-Host "      `"headers`": { `"Authorization`": `"Bearer $($toks.RwToken)`" }"
+    Write-Host "      `"headers`": {"
+    Write-Host "        `"Authorization`": `"Bearer $($toks.RwToken)`","
+    Write-Host "        `"X-PKI-Token`":   `"<your-personal-pki-api-token>`"  // REQUIRED"
+    Write-Host "      }"
     Write-Host "    }"
+    Write-Host "  (each client must set X-PKI-Token to their own PKI API token)"
     Write-Host "----------------------------------------------------------------"
 }
 

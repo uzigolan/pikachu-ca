@@ -5,7 +5,12 @@ All settings are read from environment variables (or a .env file).
 
 Required:
     PKI_BASE_URL   – Base URL of the PKI server, e.g. https://localhost:5443
-    PKI_TOKEN      – API token (create one in the PKI UI under Account → API Tokens)
+
+Not configured here (supplied per-request by clients):
+    PKI_TOKEN is NOT set on the server.  Each HTTP client must send its own
+    PKI API token in the X-PKI-Token request header.  This allows per-client
+    attribution in the PKI server audit log.  Requests without X-PKI-Token
+    are rejected with 401.
 
 Optional:
     PKI_VERIFY_SSL – Set to "false" to disable SSL cert verification (self-signed certs).
@@ -30,7 +35,7 @@ class Settings(BaseSettings):
     )
 
     PKI_BASE_URL: str = "https://localhost:443"
-    PKI_TOKEN: str = ""
+    # PKI_TOKEN is intentionally absent: each HTTP client supplies its own via X-PKI-Token.
     # Accept "true"/"false" string or a path to a CA bundle
     PKI_VERIFY_SSL: str = "true"
     MCP_TRANSPORT: str = "stdio"
