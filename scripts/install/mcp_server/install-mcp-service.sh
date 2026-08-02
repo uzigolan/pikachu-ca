@@ -68,15 +68,36 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Venv check (must exist before we can generate tokens etc.)
+# Venv bootstrap (auto-create if missing)
 # ---------------------------------------------------------------------------
 if [[ ! -f "${VENV_PYTHON}" ]]; then
-    echo "ERROR: venv not found at ${VENV_PYTHON}"
-    echo "       Bootstrap it first:"
-    echo "         cd ${PKI_ROOT}"
-    echo "         python3 -m venv pki_mcp/.venv"
-    echo "         pki_mcp/.venv/bin/pip install -q -r pki_mcp/requirements.txt"
-    exit 1
+    echo "venv not found -- bootstrapping pki_mcp/.venv ..."
+
+    # Find a suitable python3 (>= 3.10)
+    PY3=""
+    for _cand in python3.13 python3.12 python3.11 python3.10 python3 python; do
+        if command -v "$_cand" &>/dev/null; then
+            _ver=$("$_cand" -c "import sys; print(1 if sys.version_info[:2] >= (3,10) else 0)" 2>/dev/null)
+            if [[ "$_ver" == "1" ]]; then PY3="$_cand"; break; fi
+        fi
+    done
+    if [[ -z "$PY3" ]]; then
+        echo "ERROR: no Python >= 3.10 found. Install python3.10+ and re-run."
+        exit 1
+    fi
+
+    echo "  using $PY3 -> ${PKI_ROOT}/pki_mcp/.venv"
+    "$PY3" -m venv "${PKI_ROOT}/pki_mcp/.venv"
+    "${VENV_PYTHON}" -m pip install --quiet --upgrade pip
+    "${VENV_PYTHON}" -m pip install --quiet -r "${PKI_ROOT}/pki_mcp/requirements.txt"
+
+    # Add repo root to venv's sys.path so `import pki_mcp` resolves
+    _site=$("${VENV_PYTHON}" -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+    if [[ -n "$_site" ]]; then
+        echo "${PKI_ROOT}" > "${_site}/pki_root.pth"
+        echo "  sys.path -> ${PKI_ROOT}"
+    fi
+    echo "  venv ready: ${VENV_PYTHON}"
 fi
 
 # ---------------------------------------------------------------------------
