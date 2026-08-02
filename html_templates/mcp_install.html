@@ -62,6 +62,11 @@
           It contains only the MCP dependencies (<code>mcp</code>, <code>httpx</code>, <code>pydantic</code>),
           mirroring the <code>server\.venv</code> pattern used in the RAD agent toolkit.
         </div>
+        <div class="alert alert-info mt-2 mb-0 py-2" style="border-radius:8px;font-size:0.9rem;">
+          <strong>HTTP mode:</strong> The MCP server does <strong>not</strong> store any PKI token.
+          Each client passes their own personal token via <code>X-PKI-Token</code> on every request
+          — this is how the PKI server attributes actions to the right user in the audit log.
+        </div>
       </div>
     </div>
 
@@ -172,28 +177,55 @@
       <!-- HTTP Server -->
       <div class="tab-pane fade" id="panel-http" role="tabpanel">
         <h5>HTTP Server — shared multi-client mode</h5>
-        <p>Run a single pki-mcp HTTP server that multiple clients connect to by URL (no local Python needed per client).</p>
+        <p>Run a single pki-mcp HTTP server that multiple clients connect to by URL. No local Python needed per client.</p>
 
-        <h6 class="mt-3">Start the HTTP server</h6>
-        <div class="position-relative">
-          <pre id="cmd-http-server">$env:PKI_BASE_URL   = "https://{{ server_dns_name }}:{{ https_port }}"
-$env:PKI_TOKEN      = "&lt;your-api-token&gt;"
-$env:PKI_VERIFY_SSL = "false"   # set true for trusted CA certs
-
-PowerShell -ExecutionPolicy Bypass -File scripts\install\mcp_server\install-http-mcp-server.ps1</pre>
-          <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:8px;right:8px;" onclick="copyCode('cmd-http-server')">Copy</button>
+        <div class="alert alert-warning py-2 mb-3" style="border-radius:8px;font-size:0.9rem;">
+          <strong>Two-header authentication:</strong><br>
+          <code>Authorization: Bearer &lt;mcp-token&gt;</code> — shared server access token (set at install time)<br>
+          <code>X-PKI-Token: &lt;personal-pki-token&gt;</code> — <strong>each client&apos;s own</strong> PKI API token; identifies them in the audit log
         </div>
 
-        <h6 class="mt-3">Wire a client to the running HTTP server</h6>
+        <h6 class="mt-3">Option A — Windows (interactive, foreground)</h6>
+        <div class="position-relative">
+          <pre id="cmd-http-server">PowerShell -ExecutionPolicy Bypass -File scripts\install\mcp_server\install-http-mcp-server.ps1</pre>
+          <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:8px;right:8px;" onclick="copyCode('cmd-http-server')">Copy</button>
+        </div>
+        <p class="text-muted small mt-1">Prompts for: PKI CA URL &bull; bind host/port &bull; TLS mode &bull; RW + RO Bearer tokens (auto-generated if blank). Config saved to <code>.mcp-http.env</code>.</p>
+
+        <h6 class="mt-3">Option B — Linux (systemd service, auto-start on boot)</h6>
+        <div class="position-relative">
+          <pre id="cmd-http-linux">sudo bash scripts/install/mcp_server/install-mcp-service.sh</pre>
+          <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:8px;right:8px;" onclick="copyCode('cmd-http-linux')">Copy</button>
+        </div>
+        <p class="text-muted small mt-1">Same interactive prompts across 3 sections. Installs to <code>/etc/systemd/system/pki-mcp.service</code>. Manages service with <code>systemctl</code>.</p>
+
+        <h6 class="mt-3">Wire each client to the running server</h6>
+        <p class="text-muted small">Each user runs this with their own PKI API token (prompted interactively):</p>
         <div class="position-relative">
           <pre id="cmd-http-vscode"># VS Code
 PowerShell -ExecutionPolicy Bypass -File scripts\install\skills_and_mcp\install-copilot-vscode.ps1 `
-    -Http -Url http://&lt;mcp-host&gt;:8080/mcp -Token &lt;token&gt;
+    -Http -Url https://{{ server_dns_name }}:{{ https_port }}/mcp -Token &lt;mcp-bearer-token&gt;
 
 # JetBrains
 PowerShell -ExecutionPolicy Bypass -File scripts\install\skills_and_mcp\install-copilot-intellij.ps1 `
-    -Http -Url http://&lt;mcp-host&gt;:8080/mcp -Token &lt;token&gt;</pre>
+    -Http -Url https://{{ server_dns_name }}:{{ https_port }}/mcp -Token &lt;mcp-bearer-token&gt;</pre>
           <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:8px;right:8px;" onclick="copyCode('cmd-http-vscode')">Copy</button>
+        </div>
+        <p class="text-muted small mt-1">The installer will prompt for <code>X-PKI-Token</code> (your personal PKI API token from <a href="/users/tokens">Account &rarr; API Tokens</a>).</p>
+
+        <h6 class="mt-3">Resulting <code>mcp.json</code> entry</h6>
+        <div class="position-relative">
+          <pre id="cmd-http-json">{
+  "pki-mcp": {
+    "type": "http",
+    "url": "https://{{ server_dns_name }}:{{ https_port }}/mcp",
+    "headers": {
+      "Authorization": "Bearer &lt;shared-mcp-token&gt;",
+      "X-PKI-Token":   "&lt;your-personal-pki-api-token&gt;"
+    }
+  }
+}</pre>
+          <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:8px;right:8px;" onclick="copyCode('cmd-http-json')">Copy</button>
         </div>
       </div>
 
@@ -218,13 +250,16 @@ PowerShell -ExecutionPolicy Bypass -File scripts\install\skills_and_mcp\install-
           <thead><tr><th>Symptom</th><th>Fix</th></tr></thead>
           <tbody>
             <tr><td><code>ModuleNotFoundError: pki_mcp</code></td><td>Re-run <code>install-stdio-mcp-server.ps1</code></td></tr>
-            <tr><td><code>401 Invalid or expired token</code></td><td>Create a new token at <a href="/users/tokens">Account → API Tokens</a> and update the MCP config <code>env</code> block</td></tr>
-            <tr><td><code>403 [ADMIN]</code></td><td>Re-create the token while logged in as an admin-role account</td></tr>
-            <tr><td>Connection errors on tool calls</td><td>Check the CA server is running at the configured <code>PKI_BASE_URL</code></td></tr>
-            <tr><td>TLS / SSL errors</td><td>Set <code>PKI_VERIFY_SSL=false</code> for self-signed CA certs</td></tr>
+            <tr><td><code>401 X-PKI-Token header is required</code></td><td>Add <code>X-PKI-Token: &lt;your-pki-token&gt;</code> to your client&apos;s <code>mcp.json</code> headers</td></tr>
+            <tr><td><code>401 Unauthorized</code></td><td>Check <code>Authorization: Bearer &lt;mcp-token&gt;</code> is set correctly in your client headers</td></tr>
+            <tr><td><code>403 [ADMIN]</code></td><td>Your PKI token belongs to a non-admin user; create one at <a href="/users/tokens">Account &rarr; API Tokens</a> with an admin account</td></tr>
+            <tr><td>Connection errors on tool calls</td><td>Check the CA server is running at the configured <code>PKI_BASE_URL</code>; check firewall on the MCP port</td></tr>
+            <tr><td>TLS / SSL errors</td><td>Set <code>PKI_VERIFY_SSL=false</code> for self-signed CA certs, or provide a CA bundle path</td></tr>
             <tr><td>Skill not loading</td><td>Reload VS Code window; verify <code>~\.copilot\skills\rad-pki-operations\SKILL.md</code> exists</td></tr>
             <tr><td><code>pki-mcp</code> missing from <code>/mcp list</code> (JetBrains)</td><td>Re-run <code>install-copilot-intellij.ps1</code></td></tr>
             <tr><td>Skill/server version drift warning</td><td>Re-run the install script then reload VS Code</td></tr>
+            <tr><td>Linux service: SELinux exec denied</td><td><code>sudo chcon -R -t bin_t pki_mcp/.venv/bin</code> then <code>sudo systemctl restart pki-mcp</code></td></tr>
+            <tr><td>Linux service: port &lt; 1024 permission denied</td><td>Re-run <code>install-mcp-service.sh</code> — unit already sets <code>AmbientCapabilities=CAP_NET_BIND_SERVICE</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -234,15 +269,27 @@ PowerShell -ExecutionPolicy Bypass -File scripts\install\skills_and_mcp\install-
     <div class="card mb-4">
       <div class="card-body">
         <h5 class="card-title">Environment Variables</h5>
-        <table class="table table-sm mb-0">
+        <p class="text-muted small mb-2">MCP server config (<code>.mcp-http.env</code> / <code>/etc/sysconfig/pki-mcp</code>):</p>
+        <table class="table table-sm mb-3">
           <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td><code>PKI_BASE_URL</code></td><td><code>https://{{ server_dns_name }}:{{ https_port }}</code></td><td>PKI Squire CA base URL</td></tr>
-            <tr><td><code>PKI_TOKEN</code></td><td><em>required</em></td><td>API token — Bearer auth</td></tr>
             <tr><td><code>PKI_VERIFY_SSL</code></td><td><code>true</code></td><td><code>false</code> for self-signed CA certs</td></tr>
             <tr><td><code>MCP_TRANSPORT</code></td><td><code>stdio</code></td><td><code>stdio</code> or <code>http</code></td></tr>
             <tr><td><code>MCP_HOST</code></td><td><code>0.0.0.0</code></td><td>HTTP bind host</td></tr>
             <tr><td><code>MCP_PORT</code></td><td><code>8080</code></td><td>HTTP port</td></tr>
+            <tr><td><code>MCP_AUTH_TOKEN</code></td><td>—</td><td>Shared Bearer token clients must send (empty&nbsp;= open)</td></tr>
+            <tr><td><code>MCP_READONLY_TOKEN</code></td><td>—</td><td>Second accepted Bearer token (read-only use)</td></tr>
+            <tr><td><code>MCP_SSL_CERTFILE</code></td><td>—</td><td>Path to TLS certificate PEM (enables HTTPS)</td></tr>
+            <tr><td><code>MCP_SSL_KEYFILE</code></td><td>—</td><td>Path to TLS private key PEM</td></tr>
+          </tbody>
+        </table>
+        <p class="text-muted small mb-2">Client headers (per-user, in <code>mcp.json</code>):</p>
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Header</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Shared MCP server access token</td></tr>
+            <tr><td><code>X-PKI-Token: &lt;token&gt;</code></td><td>Your personal PKI API token — required in HTTP mode; identifies you in the audit log</td></tr>
           </tbody>
         </table>
       </div>
