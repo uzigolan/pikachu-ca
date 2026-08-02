@@ -49,15 +49,17 @@ $mode = 'stdio' ; $servedUrl = ''
 if ($Http -or $Url -or $Token) {
     $Url, $Token = Resolve-HttpArgs $Url $Token
     $mode = 'http' ; $servedUrl = $Url
+    $PkiToken = Prompt-ClientPkiToken
     # IntelliJ classic agent uses requestInit; Copilot CLI agent uses plain headers
-    $entry    = New-HttpEntry -Url $Url -Token $Token -RequestInit
-    $cliEntry = New-HttpEntry -Url $Url -Token $Token
+    $entry    = New-HttpEntry -Url $Url -Token $Token -PkiToken $PkiToken -RequestInit
+    $cliEntry = New-HttpEntry -Url $Url -Token $Token -PkiToken $PkiToken
 } else {
     $transport = Invoke-TransportPrompt
     if ($transport.Mode -eq 'http') {
         $mode = 'http' ; $servedUrl = $transport.Url
-        $entry    = New-HttpEntry -Url $transport.Url -Token $transport.Token -RequestInit
-        $cliEntry = New-HttpEntry -Url $transport.Url -Token $transport.Token
+        $PkiToken = Prompt-ClientPkiToken
+        $entry    = New-HttpEntry -Url $transport.Url -Token $transport.Token -PkiToken $PkiToken -RequestInit
+        $cliEntry = New-HttpEntry -Url $transport.Url -Token $transport.Token -PkiToken $PkiToken
     } else {
         $creds = Prompt-PkiCredentials
         Assert-Venv

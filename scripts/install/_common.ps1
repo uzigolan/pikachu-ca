@@ -339,20 +339,39 @@ function New-HttpEntry {
     param(
         [Parameter(Mandatory)][string]$Url,
         [Parameter(Mandatory)][string]$Token,
+        [string]$PkiToken = '',     # client's personal PKI API token (X-PKI-Token)
         [switch]$RequestInit   # JetBrains uses requestInit instead of top-level headers
     )
     if ($RequestInit) {
+        $hdrs = [ordered]@{ Authorization = "Bearer $Token" }
+        if ($PkiToken) { $hdrs['X-PKI-Token'] = $PkiToken }
         return [ordered]@{
             type        = 'http'
             url         = $Url
-            requestInit = @{ headers = @{ Authorization = "Bearer $Token" } }
+            requestInit = @{ headers = $hdrs }
         }
     }
+    $hdrs = [ordered]@{ Authorization = "Bearer $Token" }
+    if ($PkiToken) { $hdrs['X-PKI-Token'] = $PkiToken }
     return [ordered]@{
         type    = 'http'
         url     = $Url
-        headers = @{ Authorization = "Bearer $Token" }
+        headers = $hdrs
     }
+}
+
+function Prompt-ClientPkiToken {
+    # Prompt the user for their personal PKI API token (X-PKI-Token).
+    Write-Host ""
+    Write-Host "  Your personal PKI API token (used as X-PKI-Token header):"
+    Write-Host "  Create one in the PKI web UI -- Account -> API Tokens"
+    Write-Host "  (this identifies YOU in the PKI server audit log)"
+    $t = (Read-Host "  X-PKI-Token").Trim()
+    while (-not $t) {
+        Write-Host "  ERROR: token cannot be empty."
+        $t = (Read-Host "  X-PKI-Token").Trim()
+    }
+    return $t
 }
 
 # ---------------------------------------------------------------------------

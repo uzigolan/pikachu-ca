@@ -38,8 +38,9 @@ if ((-not $explicit) -and (Test-KeepExisting -Path $cfgPath -RootKey 'servers' -
 # -- non-interactive shortcut (flags provided) --------------------------------
 if ($explicit -and ($Http -or $Url -or $Token)) {
     $Url, $Token = Resolve-HttpArgs $Url $Token
-    $entry = New-HttpEntry -Url $Url -Token $Token
-    $mode  = 'http' ; $servedUrl = $Url
+    $PkiToken = Prompt-ClientPkiToken
+    $entry  = New-HttpEntry -Url $Url -Token $Token -PkiToken $PkiToken
+    $mode   = 'http' ; $servedUrl = $Url
 } else {
     # ── Transport choice (brief -- determines section 1 content) ────────────
     $mode = Get-TransportChoice
@@ -59,7 +60,8 @@ if ($explicit -and ($Http -or $Url -or $Token)) {
         $servedUrl = ''
     } else {
         $mcp       = Invoke-Section2-Http   # prompts for MCP URL + token
-        $entry     = New-HttpEntry -Url $mcp.Url -Token $mcp.Token
+        $PkiToken  = Prompt-ClientPkiToken
+        $entry     = New-HttpEntry -Url $mcp.Url -Token $mcp.Token -PkiToken $PkiToken
         $servedUrl = $mcp.Url
     }
 }
