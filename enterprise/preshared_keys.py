@@ -1,3 +1,4 @@
+import base64
 import math
 import secrets
 import sqlite3
@@ -169,19 +170,28 @@ def _extract_api_token():
 PSK_OUTPUT_FORMATS = ("raw", "hex", "base64")
 
 
-def _encode_psk_value(secret_value, output_format):
+def _psk_key_bytes(secret_value, psk_profile):
+    # Algorithm profiles store the key as a hex string; decode to the real key bytes.
+    normalized = _normalize_psk_profile(psk_profile)
+    if PSK_PROFILE_DEFS[normalized]["fixed_bytes"] is not None:
+        try:
+            return bytes.fromhex(secret_value)
+        except ValueError:
+            pass
+    return secret_value.encode("utf-8")
+
+
+def _encode_psk_value(secret_value, output_format, psk_profile=None):
     secret_value = secret_value or ""
     if output_format == "hex":
-        return secret_value.encode("utf-8").hex()
+        return _psk_key_bytes(secret_value, psk_profile).hex().upper()
     if output_format == "base64":
-        import base64
-
-        return base64.b64encode(secret_value.encode("utf-8")).decode("ascii")
+        return base64.b64encode(_psk_key_bytes(secret_value, psk_profile)).decode("ascii")
     return secret_value
 
 
 def _api_psk_response(secret_value, row, output_format="raw"):
-    body = _encode_psk_value(secret_value, output_format)
+    body = _encode_psk_value(secret_value, output_format, row.get("psk_profile"))
     response = make_response(body)
     response.headers["Content-Type"] = "text/plain; charset=utf-8"
     response.headers["Content-Disposition"] = f'attachment; filename="{row["name"]}.psk.txt"'
@@ -385,7 +395,8 @@ def _rotate_row(conn, row, user_id, start_rotating=False):
     row_id = row["id"]
     row_name = row["name"]
     length_chars = len(row["secret_value"] or "")
-    secret_value = _build_secret(length_chars)
+    psk_profile = row["psk_profile"] if "psk_profile" in row.keys() else PSK_PROFILE_CUSTOM
+    secret_value = _build_secret_for_profile(length_chars, psk_profile)
     now = datetime.now(timezone.utc)
     interval = row["rotation_interval"] or ""
     update_sql = """
@@ -426,7 +437,7 @@ def _rotate_row(conn, row, user_id, start_rotating=False):
 def _rotate_due_keys(conn, owner_id=None):
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     query = """
-        SELECT id, name, secret_value, user_id, rotation_mode, rotation_interval, next_rotation_at, revoked, expires_at
+        SELECT id, name, secret_value, user_id, psk_profile, rotation_mode, rotation_interval, next_rotation_at, revoked, expires_at
         FROM preshared_keys
         WHERE rotation_mode = 'rotating'
           AND rotation_interval IS NOT NULL
@@ -543,7 +554,7 @@ def _api_rotation_response(row, value=None, output_format="raw"):
         "expires_at": row.get("expires_at"),
     }
     if value is not None:
-        payload["value"] = _encode_psk_value(value, output_format)
+        payload["value"] = _encode_psk_value(value, output_format, row.get("psk_profile"))
         payload["value_encoding"] = output_format
     return jsonify(payload)
 
