@@ -166,13 +166,29 @@ def _extract_api_token():
     return None
 
 
-def _api_psk_response(secret_value, row):
-    response = make_response(secret_value)
+PSK_OUTPUT_FORMATS = ("raw", "hex", "base64")
+
+
+def _encode_psk_value(secret_value, output_format):
+    secret_value = secret_value or ""
+    if output_format == "hex":
+        return secret_value.encode("utf-8").hex()
+    if output_format == "base64":
+        import base64
+
+        return base64.b64encode(secret_value.encode("utf-8")).decode("ascii")
+    return secret_value
+
+
+def _api_psk_response(secret_value, row, output_format="raw"):
+    body = _encode_psk_value(secret_value, output_format)
+    response = make_response(body)
     response.headers["Content-Type"] = "text/plain; charset=utf-8"
     response.headers["Content-Disposition"] = f'attachment; filename="{row["name"]}.psk.txt"'
     response.headers["X-PSK-Id"] = str(row["id"])
     response.headers["X-PSK-Name"] = row["name"]
     response.headers["X-PSK-Length"] = str(len(secret_value or ""))
+    response.headers["X-PSK-Encoding"] = output_format
     response.headers["X-PSK-Profile"] = _normalize_psk_profile(row.get("psk_profile"))
     rotation_mode = (row.get("rotation_mode") or "static").strip().lower()
     next_rotation_dt = _parse_dt(row.get("next_rotation_at"))
@@ -793,6 +809,10 @@ def api_get_preshared_key(key_name, verify_api_token):
     if row is None:
         return token_info_or_response
 
+    output_format = (request.args.get("format") or request.args.get("encoding") or "raw").strip().lower()
+    if output_format not in PSK_OUTPUT_FORMATS:
+        return jsonify({"error": f"Unsupported format '{output_format}'. Use one of: {', '.join(PSK_OUTPUT_FORMATS)}"}), 400
+
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
         conn.execute(
@@ -800,7 +820,7 @@ def api_get_preshared_key(key_name, verify_api_token):
             (now_str, row["id"]),
         )
         conn.commit()
-    return _api_psk_response(row["secret_value"], row)
+    return _api_psk_response(row["secret_value"], row, output_format)
 
 
 def api_delete_preshared_key(key_name, verify_api_token):

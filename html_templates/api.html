@@ -103,11 +103,14 @@
           <pre>curl -k -i \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
   https://{{ server_dns_name }}/api/preshared_keys/device-001</pre>
+          <pre>curl -k -i \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  "https://{{ server_dns_name }}/api/preshared_keys/device-001?format=hex"</pre>
           <pre>curl --cert client.crt --key client.key -i \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
           https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
         </td>
-        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. The response headers include <code>X-PSK-Profile</code> and <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. Optional <code>?format=</code> (or <code>?encoding=</code>) query parameter controls the output encoding: <code>raw</code> (default), <code>hex</code>, or <code>base64</code>; the applied encoding is echoed in the <code>X-PSK-Encoding</code> response header. The response headers also include <code>X-PSK-Profile</code> and <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
       </tr>
       <tr>
         <td>Delete Pre-Shared Key by Name</td>
