@@ -529,7 +529,7 @@ def _lookup_preshared_key_for_token(key_name, verify_api_token, allow_inactive=F
     return dict(row), token_info
 
 
-def _api_rotation_response(row, value=None):
+def _api_rotation_response(row, value=None, output_format="raw"):
     payload = {
         "id": row["id"],
         "name": row["name"],
@@ -543,7 +543,8 @@ def _api_rotation_response(row, value=None):
         "expires_at": row.get("expires_at"),
     }
     if value is not None:
-        payload["value"] = value
+        payload["value"] = _encode_psk_value(value, output_format)
+        payload["value_encoding"] = output_format
     return jsonify(payload)
 
 
@@ -849,6 +850,10 @@ def api_start_preshared_key_rotation(key_name, verify_api_token):
     if row["revoked"]:
         return jsonify({"error": "Pre-shared key is revoked"}), 410
 
+    output_format = (request.args.get("format") or request.args.get("encoding") or "raw").strip().lower()
+    if output_format not in PSK_OUTPUT_FORMATS:
+        return jsonify({"error": f"Unsupported format '{output_format}'. Use one of: {', '.join(PSK_OUTPUT_FORMATS)}"}), 400
+
     interval = row.get("rotation_interval") or ""
     if not interval:
         return jsonify({"error": "Pre-shared key has no rotation interval configured"}), 400
@@ -870,7 +875,7 @@ def api_start_preshared_key_rotation(key_name, verify_api_token):
             "via": "api_token",
         },
     )
-    return _api_rotation_response(dict(updated_row), value=rotation_event["secret_value"])
+    return _api_rotation_response(dict(updated_row), value=rotation_event["secret_value"], output_format=output_format)
 
 
 def api_stop_preshared_key_rotation(key_name, verify_api_token):

@@ -130,11 +130,14 @@
           <pre>curl -k -X POST \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
   https://{{ server_dns_name }}/api/preshared_keys/device-001/rotation/start</pre>
+          <pre>curl -k -X POST \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  "https://{{ server_dns_name }}/api/preshared_keys/device-001/rotation/start?format=hex"</pre>
           <pre>curl --cert client.crt --key client.key -X POST \
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
   https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001/rotation/start</pre>
         </td>
-        <td>Enterprise only. Rotates the PSK value immediately and switches it into rotating mode. Returns JSON including the new value, rotation_mode, rotation_interval, last_rotated_at, and next_rotation_at. Requires API token. Admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+        <td>Enterprise only. Rotates the PSK value immediately and switches it into rotating mode. Returns JSON including the new value, rotation_mode, rotation_interval, last_rotated_at, and next_rotation_at. Optional <code>?format=</code> (or <code>?encoding=</code>) query parameter controls the encoding of the returned <code>value</code>: <code>raw</code> (default), <code>hex</code>, or <code>base64</code>; the applied encoding is reported in the <code>value_encoding</code> JSON field. Requires API token. Admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
       </tr>
       <tr>
         <td>Stop Rotating Pre-Shared Key by Name</td>
