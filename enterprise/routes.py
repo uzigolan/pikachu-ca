@@ -38,6 +38,8 @@ from enterprise.preshared_keys import (
     api_create_preshared_key,
     api_delete_preshared_key,
     api_get_preshared_key,
+    api_get_preshared_key_by_hash,
+    api_list_preshared_key_history,
     api_start_preshared_key_rotation,
     api_stop_preshared_key_rotation,
     delete_preshared_key,

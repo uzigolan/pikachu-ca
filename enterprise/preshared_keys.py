@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import math
 import secrets
 import sqlite3
@@ -53,6 +54,21 @@ def _ensure_preshared_key_schema(conn):
     if "psk_profile" not in cols:
         cur.execute("ALTER TABLE preshared_keys ADD COLUMN psk_profile TEXT DEFAULT 'custom'")
     cur.execute("UPDATE preshared_keys SET psk_profile = 'custom' WHERE psk_profile IS NULL OR TRIM(psk_profile) = ''")
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS preshared_key_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            psk_id INTEGER NOT NULL,
+            fingerprint TEXT NOT NULL,
+            secret_value TEXT NOT NULL,
+            psk_profile TEXT,
+            rotated_at TEXT
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_psk_history_psk_fp ON preshared_key_history (psk_id, fingerprint)"
+    )
 
 
 def parse_duration_generic(s):
@@ -181,6 +197,38 @@ def _psk_key_bytes(secret_value, psk_profile):
     return secret_value.encode("utf-8")
 
 
+def _psk_fingerprint(secret_value, psk_profile=None):
+    # Stable hash id of the key value: first 16 hex chars of SHA-256 over the real key bytes.
+    return hashlib.sha256(_psk_key_bytes(secret_value or "", psk_profile)).hexdigest()[:16]
+
+
+def _history_size():
+    try:
+        return max(0, int(current_app.config.get("PRESHARED_KEY_HISTORY_SIZE", 5)))
+    except Exception:
+        return 5
+
+
+def _archive_psk_value(conn, psk_id, secret_value, psk_profile, rotated_at):
+    keep = _history_size()
+    if keep <= 0 or not secret_value:
+        return
+    conn.execute(
+        "INSERT INTO preshared_key_history (psk_id, fingerprint, secret_value, psk_profile, rotated_at) VALUES (?, ?, ?, ?, ?)",
+        (psk_id, _psk_fingerprint(secret_value, psk_profile), secret_value, _normalize_psk_profile(psk_profile), rotated_at),
+    )
+    conn.execute(
+        """
+        DELETE FROM preshared_key_history
+        WHERE psk_id = ?
+          AND id NOT IN (
+              SELECT id FROM preshared_key_history WHERE psk_id = ? ORDER BY id DESC LIMIT ?
+          )
+        """,
+        (psk_id, psk_id, keep),
+    )
+
+
 def _encode_psk_value(secret_value, output_format, psk_profile=None):
     secret_value = secret_value or ""
     if output_format == "hex":
@@ -197,6 +245,7 @@ def _api_psk_response(secret_value, row, output_format="raw"):
     response.headers["Content-Disposition"] = f'attachment; filename="{row["name"]}.psk.txt"'
     response.headers["X-PSK-Id"] = str(row["id"])
     response.headers["X-PSK-Name"] = row["name"]
+    response.headers["X-PSK-Fingerprint"] = _psk_fingerprint(secret_value, row.get("psk_profile"))
     response.headers["X-PSK-Length"] = str(len(secret_value or ""))
     response.headers["X-PSK-Encoding"] = output_format
     response.headers["X-PSK-Profile"] = _normalize_psk_profile(row.get("psk_profile"))
@@ -378,6 +427,7 @@ def _create_preshared_key(user_id, name, purpose, note, validity, length_chars, 
         "id": psk_id,
         "name": name,
         "secret_value": secret_value,
+        "fingerprint": _psk_fingerprint(secret_value, psk_profile),
         "user_id": user_id,
         "purpose": purpose or "",
         "note": note or "",
@@ -398,6 +448,7 @@ def _rotate_row(conn, row, user_id, start_rotating=False):
     psk_profile = row["psk_profile"] if "psk_profile" in row.keys() else PSK_PROFILE_CUSTOM
     secret_value = _build_secret_for_profile(length_chars, psk_profile)
     now = datetime.now(timezone.utc)
+    _archive_psk_value(conn, row_id, row["secret_value"], psk_profile, now.strftime("%Y-%m-%d %H:%M:%S"))
     interval = row["rotation_interval"] or ""
     update_sql = """
         UPDATE preshared_keys
@@ -425,6 +476,7 @@ def _rotate_row(conn, row, user_id, start_rotating=False):
     )
     return {
         "secret_value": secret_value,
+        "fingerprint": _psk_fingerprint(secret_value, psk_profile),
         "psk_id": row_id,
         "name": row_name,
         "user_id": user_id,
@@ -545,6 +597,7 @@ def _api_rotation_response(row, value=None, output_format="raw"):
         "id": row["id"],
         "name": row["name"],
         "user_id": row["user_id"],
+        "fingerprint": _psk_fingerprint(row.get("secret_value"), row.get("psk_profile")),
         "psk_profile": _normalize_psk_profile(row.get("psk_profile")),
         "psk_profile_label": _psk_profile_label(row.get("psk_profile")),
         "rotation_mode": row.get("rotation_mode") or "static",
@@ -666,6 +719,7 @@ def delete_preshared_key(psk_id):
         if row["user_id"] != current_user.id and not current_user.is_admin():
             flash("You do not have permission to delete this pre-shared key.", "error")
             return redirect(url_for("preshared_keys"))
+        conn.execute("DELETE FROM preshared_key_history WHERE psk_id = ?", (psk_id,))
         conn.execute("DELETE FROM preshared_keys WHERE id = ?", (psk_id,))
         conn.commit()
     _log_event("delete", row["name"], current_user.id, {"psk_id": psk_id})
@@ -800,6 +854,7 @@ def api_create_preshared_key(verify_api_token):
                 "id": created["id"],
                 "name": created["name"],
                 "value": created["secret_value"],
+                "fingerprint": created["fingerprint"],
                 "user_id": created["user_id"],
                 "purpose": created["purpose"],
                 "note": created["note"],
@@ -841,6 +896,7 @@ def api_delete_preshared_key(key_name, verify_api_token):
         return token_info_or_response
 
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
+        conn.execute("DELETE FROM preshared_key_history WHERE psk_id = ?", (row["id"],))
         conn.execute("DELETE FROM preshared_keys WHERE id = ?", (row["id"],))
         conn.commit()
 
@@ -912,3 +968,73 @@ def api_stop_preshared_key_rotation(key_name, verify_api_token):
         {"psk_id": row["id"], "rotation_mode": "static", "via": "api_token"},
     )
     return _api_rotation_response(dict(updated_row))
+
+
+def api_list_preshared_key_history(key_name, verify_api_token):
+    row, token_info_or_response = _lookup_preshared_key_for_token(key_name, verify_api_token)
+    if row is None:
+        return token_info_or_response
+
+    with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
+        conn.row_factory = sqlite3.Row
+        history_rows = conn.execute(
+            "SELECT fingerprint, psk_profile, rotated_at FROM preshared_key_history WHERE psk_id = ? ORDER BY id DESC",
+            (row["id"],),
+        ).fetchall()
+
+    return jsonify(
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "user_id": row["user_id"],
+            "current": {
+                "fingerprint": _psk_fingerprint(row["secret_value"], row.get("psk_profile")),
+                "last_rotated_at": row.get("last_rotated_at"),
+            },
+            "history_size": current_app.config.get("PRESHARED_KEY_HISTORY_SIZE", 5),
+            "history": [
+                {"fingerprint": h["fingerprint"], "rotated_at": h["rotated_at"]}
+                for h in history_rows
+            ],
+        }
+    )
+
+
+def api_get_preshared_key_by_hash(key_name, hash_id, verify_api_token):
+    row, token_info_or_response = _lookup_preshared_key_for_token(key_name, verify_api_token)
+    if row is None:
+        return token_info_or_response
+
+    output_format = (request.args.get("format") or request.args.get("encoding") or "raw").strip().lower()
+    if output_format not in PSK_OUTPUT_FORMATS:
+        return jsonify({"error": f"Unsupported format '{output_format}'. Use one of: {', '.join(PSK_OUTPUT_FORMATS)}"}), 400
+
+    hash_id = (hash_id or "").strip().lower()
+    if not hash_id:
+        return jsonify({"error": "Hash id is required"}), 400
+
+    current_fp = _psk_fingerprint(row["secret_value"], row.get("psk_profile"))
+    if hash_id == current_fp:
+        secret_value = row["secret_value"]
+        psk_profile = row.get("psk_profile")
+        is_current = True
+        rotated_at = None
+    else:
+        with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
+            conn.row_factory = sqlite3.Row
+            hist = conn.execute(
+                "SELECT secret_value, psk_profile, rotated_at FROM preshared_key_history WHERE psk_id = ? AND fingerprint = ? ORDER BY id DESC LIMIT 1",
+                (row["id"], hash_id),
+            ).fetchone()
+        if hist is None:
+            return jsonify({"error": f"No key with hash '{hash_id}' found for '{row['name']}' (it may have been pruned from history)"}), 404
+        secret_value = hist["secret_value"]
+        psk_profile = hist["psk_profile"]
+        is_current = False
+        rotated_at = hist["rotated_at"]
+
+    response = _api_psk_response(secret_value, {**row, "psk_profile": psk_profile}, output_format)
+    response.headers["X-PSK-Current"] = "true" if is_current else "false"
+    if rotated_at:
+        response.headers["X-PSK-Rotated-At"] = rotated_at
+    return response

@@ -81,7 +81,7 @@
         <td>Enterprise only. Returns public key PEM for the named key. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own keys only; admin token may access any key.</td>
       </tr>
       <tr>
-        <td rowspan="5">Pre-Shared Key<br><small class="text-muted">Enterprise only</small></td>
+        <td rowspan="7">Pre-Shared Key<br><small class="text-muted">Enterprise only</small></td>
         <td>Create Pre-Shared Key</td>
         <td>
           <pre>curl -k -X POST \
@@ -110,7 +110,43 @@
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
           https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001</pre>
         </td>
-        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. Optional <code>?format=</code> (or <code>?encoding=</code>) query parameter controls the output encoding: <code>raw</code> (default), <code>hex</code> (uppercase 0-9A-F), or <code>base64</code>; the applied encoding is echoed in the <code>X-PSK-Encoding</code> response header. The response headers also include <code>X-PSK-Profile</code> and <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+        <td>Enterprise only. Returns the secret for the named PSK as a downloadable text response. Optional <code>?format=</code> (or <code>?encoding=</code>) query parameter controls the output encoding: <code>raw</code> (default), <code>hex</code> (uppercase 0-9A-F), or <code>base64</code>; the applied encoding is echoed in the <code>X-PSK-Encoding</code> response header. The response headers also include <code>X-PSK-Fingerprint</code> (the hash id of the current key value, usable with the history endpoint), <code>X-PSK-Profile</code> and <code>X-PSK-Rotation-Remaining-Seconds</code>: remaining seconds until the next rotation when the PSK is rotating, or <code>-1</code> when it is not in rotating mode. Requires API token. Works on normal HTTPS and on TRUSTED_HTTPS mTLS. User token sees own PSKs only; admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+      </tr>
+      <tr>
+        <td>List PSK Key History (hash ids)</td>
+        <td>
+          <pre>curl -k \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}/api/preshared_keys/device-001/history</pre>
+          <pre># Example response
+{
+  "id": 23,
+  "name": "device-001",
+  "user_id": 2,
+  "current": {"fingerprint": "4f68d39b890de0ae", "last_rotated_at": "2026-08-11 13:40:14"},
+  "history_size": 5,
+  "history": [
+    {"fingerprint": "8d6e48f92365b592", "rotated_at": "2026-08-11 13:40:14"},
+    {"fingerprint": "c85a75d56e15b47d", "rotated_at": "2026-08-11 13:38:13"}
+  ]
+}</pre>
+        </td>
+        <td>Enterprise only. Every PSK value has a stable hash id (fingerprint: first 16 hex chars of SHA-256 over the real key bytes). Each rotation archives the previous value; this endpoint lists the current fingerprint plus the archived fingerprints, newest first (secrets are never included). The history depth is set by <code>preshared_key_history_size</code> in config.ini (default 5; 0 disables history). Requires API token.</td>
+      </tr>
+      <tr>
+        <td>Get PSK by Hash Id</td>
+        <td>
+          <pre>curl -k -i \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}/api/preshared_keys/device-001/history/8d6e48f92365b592</pre>
+          <pre>curl -k -i \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  "https://{{ server_dns_name }}/api/preshared_keys/device-001/history/8d6e48f92365b592?format=hex"</pre>
+          <pre>curl --cert client.crt --key client.key -i \
+  -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
+  https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001/history/8d6e48f92365b592</pre>
+        </td>
+        <td>Enterprise only. Fetches a specific key value by its hash id, even after it has been rotated out - so devices that are still on an older key can retrieve exactly the version they know. Matches the current value or any archived one still within the configured history depth; returns <code>404</code> if the hash was pruned. Same <code>?format=</code> options and <code>X-PSK-*</code> headers as the get-by-name endpoint, plus <code>X-PSK-Current</code> (<code>true</code>/<code>false</code>) and <code>X-PSK-Rotated-At</code> for archived values. Requires API token.</td>
       </tr>
       <tr>
         <td>Delete Pre-Shared Key by Name</td>
@@ -137,7 +173,7 @@
   -H "Authorization: Bearer &lt;API_TOKEN&gt;" \
   https://{{ server_dns_name }}:{{ trusted_https_port }}/api/preshared_keys/device-001/rotation/start</pre>
         </td>
-        <td>Enterprise only. Rotates the PSK value immediately and switches it into rotating mode. Returns JSON including the new value, rotation_mode, rotation_interval, last_rotated_at, and next_rotation_at. Optional <code>?format=</code> (or <code>?encoding=</code>) query parameter controls the encoding of the returned <code>value</code>: <code>raw</code> (default), <code>hex</code> (uppercase 0-9A-F), or <code>base64</code>; the applied encoding is reported in the <code>value_encoding</code> JSON field. Requires API token. Admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
+        <td>Enterprise only. Rotates the PSK value immediately and switches it into rotating mode. Returns JSON including the new value, its <code>fingerprint</code> (hash id), rotation_mode, rotation_interval, last_rotated_at, and next_rotation_at. The previous value is archived and stays fetchable by its hash id via the history endpoint. Optional <code>?format=</code> (or <code>?encoding=</code>) query parameter controls the encoding of the returned <code>value</code>: <code>raw</code> (default), <code>hex</code> (uppercase 0-9A-F), or <code>base64</code>; the applied encoding is reported in the <code>value_encoding</code> JSON field. Requires API token. Admin token may need <code>?user_id=</code> or <code>?username=</code> if the name is not unique system-wide.</td>
       </tr>
       <tr>
         <td>Stop Rotating Pre-Shared Key by Name</td>

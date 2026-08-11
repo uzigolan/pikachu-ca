@@ -200,10 +200,19 @@ if not server_dns_name:
     server_dns_name = "pkisquire-ca.iot-rad.com"
 app.config["SERVER_DNS_NAME"] = server_dns_name
 init_users_config(app, _cfg)
-app.config["PRESHARED_KEY_DEFAULT_VALIDITY"] = _cfg.get("DEFAULT", "preshared_key_default_validity", fallback="60d")
-app.config["PRESHARED_KEY_LENGTH"] = _cfg.getint("DEFAULT", "preshared_key_length", fallback=48)
+# PSK settings live in the [PSK] section; legacy preshared_key_* keys in [DEFAULT] are honored as fallback
+app.config["PRESHARED_KEY_DEFAULT_VALIDITY"] = _cfg.get(
+    "PSK", "default_validity", fallback=_cfg.get("DEFAULT", "preshared_key_default_validity", fallback="60d")
+)
+app.config["PRESHARED_KEY_LENGTH"] = _cfg.getint(
+    "PSK", "length", fallback=_cfg.getint("DEFAULT", "preshared_key_length", fallback=48)
+)
 app.config["PRESHARED_KEY_DEFAULT_ROTATION_INTERVAL"] = _cfg.get(
-    "DEFAULT", "preshared_key_default_rotation_interval", fallback="2m"
+    "PSK", "default_rotation_interval",
+    fallback=_cfg.get("DEFAULT", "preshared_key_default_rotation_interval", fallback="2m"),
+)
+app.config["PRESHARED_KEY_HISTORY_SIZE"] = _cfg.getint(
+    "PSK", "history_size", fallback=_cfg.getint("DEFAULT", "preshared_key_history_size", fallback=5)
 )
 
 ca_mode = _cfg.get("CA", "mode", fallback="EC").upper()
@@ -1001,6 +1010,16 @@ def api_start_preshared_key_rotation(key_name):
 @app.route("/api/preshared_keys/<path:key_name>/rotation/stop", methods=["POST"])
 def api_stop_preshared_key_rotation(key_name):
     return _enterprise_routes_module().api_stop_preshared_key_rotation(key_name, verify_api_token)
+
+
+@app.route("/api/preshared_keys/<path:key_name>/history", methods=["GET"])
+def api_list_preshared_key_history(key_name):
+    return _enterprise_routes_module().api_list_preshared_key_history(key_name, verify_api_token)
+
+
+@app.route("/api/preshared_keys/<path:key_name>/history/<hash_id>", methods=["GET"])
+def api_get_preshared_key_by_hash(key_name, hash_id):
+    return _enterprise_routes_module().api_get_preshared_key_by_hash(key_name, hash_id, verify_api_token)
 
 
 
