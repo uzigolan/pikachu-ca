@@ -170,6 +170,8 @@ Parses certificates, CSRs, CRLs, keys, OCSP, PKCS#7/12.
 |---|---|---|
 | `psk_list` | GET | `/preshared_keys/data` |
 | `psk_get` | GET | `/api/preshared_keys/<name>` |
+| `psk_history` | GET | `/api/preshared_keys/<name>/history` |
+| `psk_get_by_hash` | GET | `/api/preshared_keys/<name>/history/<hash_id>` |
 | `psk_create` | POST | `/api/preshared_keys` |
 | `psk_delete` | DELETE | `/api/preshared_keys/<name>` |
 | `psk_revoke` | POST | `/preshared_keys/<id>/revoke` |

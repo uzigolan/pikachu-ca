@@ -16,8 +16,24 @@ def register(mcp: FastMCP, client: PKIClient) -> None:
 
     @mcp.tool()
     async def psk_get(name: str) -> str:
-        """Retrieve the current value of a pre-shared key by name."""
+        """Retrieve the current value of a pre-shared key by name.
+        The response includes the key's fingerprint (hash id), which can be used
+        later with psk_get_by_hash to fetch this exact value even after rotation."""
         result = await client.get(f"/api/preshared_keys/{name}")
+        return fmt(result)
+
+    @mcp.tool()
+    async def psk_history(name: str) -> str:
+        """List the fingerprint (hash id) history of a pre-shared key:
+        the current fingerprint plus rotated-out ones still kept in history."""
+        result = await client.get(f"/api/preshared_keys/{name}/history")
+        return fmt(result)
+
+    @mcp.tool()
+    async def psk_get_by_hash(name: str, hash_id: str) -> str:
+        """Retrieve a specific value of a pre-shared key by its fingerprint (hash id).
+        Works for the current value and for rotated-out values still kept in history."""
+        result = await client.get(f"/api/preshared_keys/{name}/history/{hash_id}")
         return fmt(result)
 
     @mcp.tool()

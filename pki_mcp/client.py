@@ -64,6 +64,14 @@ class PKIClient:
                 data = {"error": resp.text, "status": resp.status_code}
         else:
             data = {"data": resp.text, "status": resp.status_code}
+            # Surface PSK metadata (fingerprint/hash id, rotation info, ...) sent as X-PSK-* headers
+            psk_meta = {
+                k[len("x-psk-"):].lower().replace("-", "_"): v
+                for k, v in resp.headers.items()
+                if k.lower().startswith("x-psk-")
+            }
+            if psk_meta:
+                data.update(psk_meta)
 
         if resp.status_code >= 400:
             if isinstance(data, dict) and "error" not in data:

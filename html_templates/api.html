@@ -131,7 +131,7 @@
   ]
 }</pre>
         </td>
-        <td>Enterprise only. Every PSK value has a stable hash id (fingerprint: first 16 hex chars of SHA-256 over the real key bytes). Each rotation archives the previous value; this endpoint lists the current fingerprint plus the archived fingerprints, newest first (secrets are never included). The history depth is set by <code>preshared_key_history_size</code> in config.ini (default 5; 0 disables history). Requires API token.</td>
+        <td>Enterprise only. Every PSK value has a stable hash id (fingerprint: first 16 hex chars of SHA-256 over the real key bytes). Each rotation archives the previous value; this endpoint lists the current fingerprint plus the archived fingerprints, newest first (secrets are never included). The history depth is set by <code>history_size</code> in the <code>[PSK]</code> section of config.ini (default 5; 0 disables history). Requires API token.</td>
       </tr>
       <tr>
         <td>Get PSK by Hash Id</td>

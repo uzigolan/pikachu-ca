@@ -4,6 +4,7 @@ import math
 import secrets
 import sqlite3
 import re
+import threading
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
 
@@ -54,21 +55,6 @@ def _ensure_preshared_key_schema(conn):
     if "psk_profile" not in cols:
         cur.execute("ALTER TABLE preshared_keys ADD COLUMN psk_profile TEXT DEFAULT 'custom'")
     cur.execute("UPDATE preshared_keys SET psk_profile = 'custom' WHERE psk_profile IS NULL OR TRIM(psk_profile) = ''")
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS preshared_key_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            psk_id INTEGER NOT NULL,
-            fingerprint TEXT NOT NULL,
-            secret_value TEXT NOT NULL,
-            psk_profile TEXT,
-            rotated_at TEXT
-        )
-        """
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_psk_history_psk_fp ON preshared_key_history (psk_id, fingerprint)"
-    )
 
 
 def parse_duration_generic(s):
@@ -209,24 +195,36 @@ def _history_size():
         return 5
 
 
+# Runtime-only PSK history: rotated-out values live in memory and are lost on restart.
+_PSK_HISTORY = {}
+_PSK_HISTORY_LOCK = threading.Lock()
+
+
 def _archive_psk_value(conn, psk_id, secret_value, psk_profile, rotated_at):
     keep = _history_size()
     if keep <= 0 or not secret_value:
         return
-    conn.execute(
-        "INSERT INTO preshared_key_history (psk_id, fingerprint, secret_value, psk_profile, rotated_at) VALUES (?, ?, ?, ?, ?)",
-        (psk_id, _psk_fingerprint(secret_value, psk_profile), secret_value, _normalize_psk_profile(psk_profile), rotated_at),
-    )
-    conn.execute(
-        """
-        DELETE FROM preshared_key_history
-        WHERE psk_id = ?
-          AND id NOT IN (
-              SELECT id FROM preshared_key_history WHERE psk_id = ? ORDER BY id DESC LIMIT ?
-          )
-        """,
-        (psk_id, psk_id, keep),
-    )
+    entry = {
+        "fingerprint": _psk_fingerprint(secret_value, psk_profile),
+        "secret_value": secret_value,
+        "psk_profile": _normalize_psk_profile(psk_profile),
+        "rotated_at": rotated_at,
+    }
+    with _PSK_HISTORY_LOCK:
+        entries = _PSK_HISTORY.setdefault(psk_id, [])
+        entries.append(entry)
+        del entries[:-keep]
+
+
+def _drop_psk_history(psk_id):
+    with _PSK_HISTORY_LOCK:
+        _PSK_HISTORY.pop(psk_id, None)
+
+
+def _get_psk_history(psk_id):
+    # Newest first
+    with _PSK_HISTORY_LOCK:
+        return list(reversed(_PSK_HISTORY.get(psk_id, [])))
 
 
 def _encode_psk_value(secret_value, output_format, psk_profile=None):
@@ -719,9 +717,9 @@ def delete_preshared_key(psk_id):
         if row["user_id"] != current_user.id and not current_user.is_admin():
             flash("You do not have permission to delete this pre-shared key.", "error")
             return redirect(url_for("preshared_keys"))
-        conn.execute("DELETE FROM preshared_key_history WHERE psk_id = ?", (psk_id,))
         conn.execute("DELETE FROM preshared_keys WHERE id = ?", (psk_id,))
         conn.commit()
+    _drop_psk_history(psk_id)
     _log_event("delete", row["name"], current_user.id, {"psk_id": psk_id})
     flash(f"Pre-shared key '{row['name']}' deleted.", "success")
     return redirect(url_for("preshared_keys"))
@@ -896,10 +894,10 @@ def api_delete_preshared_key(key_name, verify_api_token):
         return token_info_or_response
 
     with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
-        conn.execute("DELETE FROM preshared_key_history WHERE psk_id = ?", (row["id"],))
         conn.execute("DELETE FROM preshared_keys WHERE id = ?", (row["id"],))
         conn.commit()
 
+    _drop_psk_history(row["id"])
     _log_event(
         "delete",
         row["name"],
@@ -975,12 +973,7 @@ def api_list_preshared_key_history(key_name, verify_api_token):
     if row is None:
         return token_info_or_response
 
-    with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
-        conn.row_factory = sqlite3.Row
-        history_rows = conn.execute(
-            "SELECT fingerprint, psk_profile, rotated_at FROM preshared_key_history WHERE psk_id = ? ORDER BY id DESC",
-            (row["id"],),
-        ).fetchall()
+    history_rows = _get_psk_history(row["id"])
 
     return jsonify(
         {
@@ -1020,14 +1013,9 @@ def api_get_preshared_key_by_hash(key_name, hash_id, verify_api_token):
         is_current = True
         rotated_at = None
     else:
-        with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
-            conn.row_factory = sqlite3.Row
-            hist = conn.execute(
-                "SELECT secret_value, psk_profile, rotated_at FROM preshared_key_history WHERE psk_id = ? AND fingerprint = ? ORDER BY id DESC LIMIT 1",
-                (row["id"], hash_id),
-            ).fetchone()
+        hist = next((h for h in _get_psk_history(row["id"]) if h["fingerprint"] == hash_id), None)
         if hist is None:
-            return jsonify({"error": f"No key with hash '{hash_id}' found for '{row['name']}' (it may have been pruned from history)"}), 404
+            return jsonify({"error": f"No key with hash '{hash_id}' found for '{row['name']}' (history is kept in memory only and may have been pruned or cleared by a restart)"}), 404
         secret_value = hist["secret_value"]
         psk_profile = hist["psk_profile"]
         is_current = False
