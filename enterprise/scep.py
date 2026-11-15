@@ -59,6 +59,23 @@ def _get_ra_mgr():
     return RAPolicyManager(current_app.config["DB_PATH"], current_app.logger)
 
 
+def _log_scep_event(event_type, serial, user_id, details):
+    from events import log_event
+    try:
+        log_event(event_type, "certificate", serial, user_id if user_id is not None else "scep", details)
+    except sqlite3.Error:
+        current_app.logger.exception("Failed to record SCEP certificate event")
+
+
+def _log_renewal_failure(signer_cert, user_id, reason):
+    _log_scep_event("renew_failed", hex(signer_cert.serial_number), user_id, {
+        "issued_via": "scep",
+        "renewal": True,
+        "previous_serial": hex(signer_cert.serial_number),
+        "reason": reason,
+    })
+
+
 def _authenticate_renewal(signer_cert, csr, ca_cert):
     now = datetime.datetime.now(datetime.timezone.utc)
     if not signer_cert.not_valid_before_utc <= now <= signer_cert.not_valid_after_utc:
@@ -262,11 +279,13 @@ def scep():
     )
     if is_renewal:
       if not renewal_enabled:
+        _log_renewal_failure(signer_cert, None, "SCEP certificate renewal is disabled")
         return abort(403, "SCEP certificate renewal is disabled")
       try:
         challenge_user_id = _authenticate_renewal(signer_cert, csr, ca.certificate)
       except (ValueError, TypeError) as exc:
         current_app.logger.warning("SCEP renewal rejected: %s", exc)
+        _log_renewal_failure(signer_cert, None, str(exc))
         return abort(403, "SCEP renewal authentication failed")
 
     if challenge_enabled and not is_renewal and req.message_type == MessageType.PKCSReq:
@@ -381,6 +400,8 @@ def scep():
       try:
         with mgr.temp_extfile(policy) as extfile_path:
           if not extfile_path:
+            if is_renewal:
+              _log_renewal_failure(signer_cert, challenge_user_id, "No SCEP RA policy extension config available")
             return abort(500, "No RA policy extension config available")
           cmd = ["openssl","x509"]
           cmd.extend(get_provider_args())
@@ -399,6 +420,8 @@ def scep():
           subprocess.run(cmd, check=True, capture_output=True, text=True)
       except subprocess.CalledProcessError as e:
         current_app.logger.error("OpenSSL signing failed: %s", e.stderr)
+        if is_renewal:
+          _log_renewal_failure(signer_cert, challenge_user_id, "Certificate signing failed")
         os.unlink(csr_tmp.name)
         os.unlink(cert_tmp.name)
         return abort(500, "Signing failed")
@@ -429,30 +452,21 @@ def scep():
       with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
           """INSERT INTO certificates
-             (subject, serial, cert_pem, issued_via, user_id, not_valid_before, not_valid_after)
-             VALUES (?, ?, ?, ?, ?, ?, ?)""",
+             (subject, serial, cert_pem, issued_via, user_id, not_valid_before, not_valid_after, renewed_from_serial)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
           (subject_str, actual_serial, cert_pem, 'scep', challenge_user_id,
-           cert_obj.not_valid_before_utc.isoformat(), cert_obj.not_valid_after_utc.isoformat()),
+           cert_obj.not_valid_before_utc.isoformat(), cert_obj.not_valid_after_utc.isoformat(),
+           hex(signer_cert.serial_number) if is_renewal else None),
         )
         conn.commit()
 
-      # Log event for SCEP certificate issuance
-      try:
-        from events import log_event
-        log_event(
-          event_type="create",
-          resource_type="certificate",
-          resource_name=actual_serial,
-          user_id=challenge_user_id if challenge_user_id is not None else "scep",
-          details={
-            "subject": subject_str,
-            "issued_via": "scep",
-            "renewal": is_renewal,
-            "previous_serial": hex(signer_cert.serial_number) if is_renewal else None,
-          }
-        )
-      except Exception as e:
-        current_app.logger.error(f"Failed to log SCEP certificate event: {e}")
+      _log_scep_event("renew" if is_renewal else "create", actual_serial, challenge_user_id, {
+        "subject": subject_str,
+        "issued_via": "scep",
+        "renewal": is_renewal,
+        "previous_serial": hex(signer_cert.serial_number) if is_renewal else None,
+        "new_serial": actual_serial,
+      })
 
       # cleanup CSR + cert files
       os.unlink(csr_tmp.name)

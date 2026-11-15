@@ -1,9 +1,11 @@
 import sqlite3
+import json
 import shutil
 import subprocess
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -14,7 +16,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import pkcs7
 from cryptography.x509.oid import NameOID, ObjectIdentifier
-from flask import Flask
+from flask import Flask, render_template
+from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader
 from werkzeug.serving import make_server
 
 from builders import PKIMessageBuilder, Signer
@@ -22,6 +25,8 @@ from enterprise.scep import scep_app
 from enums import MessageType
 from envelope import PKCSPKIEnvelopeBuilder
 from message import SCEPMessage
+from certificate_renewals import ensure_certificate_renewal_schema, get_certificate_renewal_links
+from events import bp as events_bp
 
 
 def _key():
@@ -94,6 +99,8 @@ def scep_server(tmp_path, monkeypatch):
             CREATE TABLE certificates (id INTEGER PRIMARY KEY, subject TEXT, serial TEXT,
                 cert_pem TEXT, issued_via TEXT, user_id INTEGER, revoked INTEGER DEFAULT 0,
                 not_valid_before TEXT, not_valid_after TEXT);
+            CREATE TABLE events (event_id INTEGER PRIMARY KEY, event_type TEXT, resource_type TEXT,
+                resource_name TEXT, user_id TEXT, timestamp TEXT, details TEXT);
             CREATE TABLE challenge_passwords (value TEXT, consumed INTEGER, user_id INTEGER,
                 validity TEXT, created_at TEXT, usage_mode TEXT, use_count INTEGER, last_used_at TEXT);
         """)
@@ -101,6 +108,7 @@ def scep_server(tmp_path, monkeypatch):
             "INSERT INTO challenge_passwords VALUES (?, 0, 42, ?, ?, 'single_use', 0, NULL)",
             ("one-time", "60m", now.strftime("%Y-%m-%d %H:%M:%S UTC")),
         )
+        ensure_certificate_renewal_schema(conn)
 
     class PolicyManager:
         def get_protocol_default(self, protocol):
@@ -121,6 +129,13 @@ def scep_server(tmp_path, monkeypatch):
         SUBCA_CERT_PATH=str(cert_path), CHAIN_FILE_PATH=str(cert_path), DB_PATH=str(db_path),
     )
     app.register_blueprint(scep_app)
+    app.register_blueprint(events_bp)
+    app.jinja_loader = ChoiceLoader([
+        DictLoader({"layout.html": "{% block content %}{% endblock %}"}),
+        FileSystemLoader(str(Path(__file__).resolve().parents[1] / "html_templates")),
+    ])
+    app.add_url_rule("/certs", endpoint="index", view_func=lambda: "")
+    app.add_url_rule("/view/<int:cert_id>", endpoint="view_certificate", view_func=lambda cert_id: "")
     return app, ca_cert, ca_key, db_path
 
 
@@ -169,6 +184,12 @@ def test_password_free_renewal_retains_owner_and_applies_policy(scep_server, mes
         assert conn.execute("SELECT use_count FROM challenge_passwords").fetchone() == (1,)
         dates = conn.execute("SELECT not_valid_before, not_valid_after FROM certificates WHERE serial = ?", (hex(new.serial_number),)).fetchone()
         assert dates == (new.not_valid_before_utc.isoformat(), new.not_valid_after_utc.isoformat())
+        previous = conn.execute("SELECT renewed_from_serial FROM certificates WHERE serial = ?", (hex(new.serial_number),)).fetchone()
+        assert previous == (hex(old.serial_number),)
+        event_type, details = conn.execute("SELECT event_type, details FROM events ORDER BY event_id DESC LIMIT 1").fetchone()
+        assert event_type == "renew"
+        assert json.loads(details)["previous_serial"] == hex(old.serial_number)
+        assert json.loads(details)["new_serial"] == hex(new.serial_number)
 
 
 @pytest.mark.parametrize("case", ["disabled", "revoked", "unknown", "expired", "subject", "key"])
@@ -194,6 +215,10 @@ def test_renewal_rejects_invalid_authentication(scep_server, case):
         csr_key = _key()
     request_bytes = _request(_csr(csr_key, subject), ca_cert, old, key, MessageType.RenewalReq)
     assert _post(app, request_bytes).status_code == 403
+    with sqlite3.connect(db_path) as conn:
+        event_type, details = conn.execute("SELECT event_type, details FROM events ORDER BY event_id DESC LIMIT 1").fetchone()
+        assert event_type == "renew_failed"
+        assert json.loads(details)["reason"]
 
 
 @pytest.mark.parametrize("part", ["signature", "content"])
@@ -324,3 +349,144 @@ def test_api_renewal_script_against_isolated_server(scep_server, tmp_path):
         server.shutdown()
         thread.join()
         server.server_close()
+
+
+def test_renewal_relationship_migration_is_idempotent():
+    with sqlite3.connect(":memory:") as conn:
+        conn.executescript("""
+            CREATE TABLE certificates (id INTEGER PRIMARY KEY, serial TEXT, issued_via TEXT);
+            CREATE TABLE events (event_id INTEGER PRIMARY KEY, event_type TEXT, resource_type TEXT,
+                resource_name TEXT, details TEXT);
+            INSERT INTO certificates VALUES (1, '0xold', 'scep'), (2, '0xnew', 'scep'), (3, '0xbad', 'scep');
+            INSERT INTO events VALUES
+                (1, 'create', 'certificate', '0xnew', '{"renewal": true, "previous_serial": "0xold"}'),
+                (2, 'create', 'certificate', '0xbad', 'invalid json');
+        """)
+        ensure_certificate_renewal_schema(conn)
+        ensure_certificate_renewal_schema(conn)
+        assert conn.execute("SELECT serial, renewed_from_serial FROM certificates ORDER BY id").fetchall() == [
+            ("0xold", None), ("0xnew", "0xold"), ("0xbad", None),
+        ]
+
+
+def test_renewal_links_respect_ownership_and_deleted_records():
+    with sqlite3.connect(":memory:") as conn:
+        conn.row_factory = sqlite3.Row
+        conn.executescript("""
+            CREATE TABLE certificates (id INTEGER PRIMARY KEY, serial TEXT, renewed_from_serial TEXT, user_id INTEGER);
+            INSERT INTO certificates VALUES
+                (1, '0xold', NULL, 42), (2, '0xnew', '0xold', 42),
+                (3, '0xforeign', '0xold', 99), (4, '0xorphan', '0xdeleted', 42);
+        """)
+        rows = conn.execute("SELECT * FROM certificates WHERE user_id=42").fetchall()
+        links = get_certificate_renewal_links(conn, rows, user_id=42)
+        assert links[1]["successors"] == [{"id": 2, "serial": "0xnew"}]
+        assert links[2]["previous"] == {"id": 1, "serial": "0xold"}
+        assert links[4]["previous"] == {"id": None, "serial": "0xdeleted"}
+
+
+def test_renewal_is_visible_in_certificates_and_events(scep_server):
+    app, ca_cert, _, db_path = scep_server
+    key, old = _enroll(scep_server)
+    assert _post(app, _request(_csr(key, old.subject), ca_cert, old, key)).status_code == 200
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM certificates ORDER BY id").fetchall()
+        links = get_certificate_renewal_links(conn, rows, user_id=42)
+        event = tuple(conn.execute("SELECT * FROM events ORDER BY event_id DESC LIMIT 1").fetchone())
+    certs = [
+        (row["id"], row["subject"], row["serial"], "RSA/2048", "today", False, False,
+         "owner", "scep", row["cert_pem"], "device")
+        for row in rows
+    ]
+    with app.test_request_context("/certs"):
+        page = render_template(
+            "list_certificates.html", certs=certs, renewal_links=links, is_admin=True,
+            current_page=1, page_size=25, total_count=2, total_pages=1, search_query="",
+        )
+        assert 'data-testid="certificate-renewal"' in page
+        assert 'data-testid="certificate-renewed-to"' in page
+        assert f'href="/view/{rows[0]["id"]}"' in page
+        assert f'href="/view/{rows[1]["id"]}"' in page
+        assert f'title="{rows[0]["serial"]}"' in page
+        assert f'{rows[0]["serial"][:10]}...' in page
+        assert f'title="{rows[1]["serial"]}"' in page
+        assert f'{rows[1]["serial"][:10]}...' in page
+        assert 'data-copy-target="renewal-previous-' in page
+        assert 'data-copy-target="renewal-successor-' in page
+        assert 'aria-label="Certificate renewal">&#8635;</span>' in page
+        assert page.count("status-valid") >= 2
+        events_page = render_template("events.html", events=[event], show_user_column=True)
+        assert ">Renewed</span>" in events_page
+        detail_page = render_template("event_detail.html", event=event)
+        assert "Certificate renewed" in detail_page
+        assert rows[0]["serial"] in detail_page
+        assert rows[1]["serial"] in detail_page
+        historical = list(event)
+        historical[1] = "create"
+        assert ">Renewed</span>" in render_template("events.html", events=[historical], show_user_column=True)
+        detail = render_template("view.html", cert_details={}, renewal=links[rows[1]["id"]], issued_via="scep", certificate_id=rows[1]["id"])
+        assert "Renewed from" in detail
+        assert f'title="{rows[0]["serial"]}"' in detail
+        assert f'{rows[0]["serial"][:10]}...' in detail
+
+
+def test_renewal_serial_copy_targets_are_unique_and_use_full_values(scep_server):
+    app, _, _, _ = scep_server
+    long_serial = "0x123456789012345678901234567890"
+    links = {
+        "previous": {"id": None, "serial": long_serial},
+        "successors": [{"id": 8, "serial": "0x123"}],
+    }
+
+    class CopyTargets(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.buttons = []
+            self.spans = {}
+            self.active = None
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "button" and attrs.get("data-copy-target"):
+                self.buttons.append(attrs)
+            if tag == "span" and attrs.get("id", "").startswith("renewal-"):
+                self.active = attrs["id"]
+
+        def handle_data(self, data):
+            if self.active:
+                self.spans[self.active] = data
+
+        def handle_endtag(self, tag):
+            if tag == "span":
+                self.active = None
+
+    with app.test_request_context("/certs"):
+        html = render_template("_certificate_renewal.html", renewal=links, renewal_context=10)
+        html += render_template("_certificate_renewal.html", renewal=links, renewal_context=11)
+    parsed = CopyTargets()
+    parsed.feed(html)
+    targets = [button["data-copy-target"] for button in parsed.buttons]
+    assert len(targets) == len(set(targets)) == 4
+    assert all(parsed.spans[button["data-copy-target"]] == button["title"] for button in parsed.buttons)
+    assert parsed.spans["renewal-previous-10"] == long_serial
+    assert parsed.spans["renewal-successor-10-8"] == "0x123"
+    assert "Renewed to<br>" in html
+    assert "(record unavailable)" in html
+
+
+def test_signing_failure_is_visible_without_issuing_certificate(scep_server, monkeypatch):
+    app, ca_cert, _, db_path = scep_server
+    key, old = _enroll(scep_server)
+
+    def fail_signing(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args[0], stderr="test signing failure")
+
+    monkeypatch.setattr("enterprise.scep.subprocess.run", fail_signing)
+    assert _post(app, _request(_csr(key, old.subject), ca_cert, old, key)).status_code == 500
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM certificates").fetchone() == (1,)
+        event = conn.execute("SELECT * FROM events ORDER BY event_id DESC LIMIT 1").fetchone()
+    with app.test_request_context("/events/"):
+        assert ">Renewal failed</span>" in render_template("events.html", events=[event], show_user_column=True)
+        assert "Certificate signing failed" in render_template("event_detail.html", event=event)

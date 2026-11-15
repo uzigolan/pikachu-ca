@@ -190,13 +190,13 @@
 
       <!-- SCEP -->
       <tr>
-        <td rowspan="4">SCEP<br><small class="text-muted">Enterprise only</small></td>
+        <td rowspan="5">SCEP<br><small class="text-muted">Enterprise only</small></td>
         <td>SCEP GetCaps</td>
         <td>
           <pre>sscep getcaps -u http://{{ server_dns_name }}:{{ scep_http_port }}/scep</pre>
           <pre>curl http://{{ server_dns_name }}:{{ scep_http_port }}/scep?operation=GetCACaps</pre>
         </td>
-        <td>Query server capabilities (AES, DES3, POSTPKIOperation, SHA-256, etc.)</td>
+        <td>Query server capabilities (AES, DES3, POSTPKIOperation, SHA-256, etc.). Renewal is advertised only when enabled.</td>
       </tr>
       <tr>
         <td>SCEP GetCA</td>
@@ -220,6 +220,22 @@
   -S sha256</pre>
         </td>
         <td>Enroll certificate via SCEP. Options: -E (encryption: aes|3des), -S (signature: sha256|sha512)</td>
+      </tr>
+      <tr>
+        <td>SCEP Renewal</td>
+        <td>
+          <pre>sscep enroll \
+  -u http://{{ server_dns_name }}:{{ scep_http_port }}/scep \
+  -k client.key \
+  -r renewal.csr \
+  -c ca.crt \
+  -K client.key \
+  -O client.crt \
+  -l client.crt \
+  -E aes \
+  -S sha256</pre>
+        </td>
+        <td>Enable <code>certificate_renewal_enabled = true</code> in <code>[SCEP]</code> and restart the server. Generate <code>renewal.csr</code> with the same subject and key, without a challenge password. The existing certificate authenticates the request and must be valid, unrevoked, issued by this CA, and present in its database. The current SCEP RA policy controls extensions, including SANs. <code>-K</code>/<code>-O</code> select the old key/certificate; <code>-l</code> replaces the certificate at the same path. Renewal uses the existing SCEP endpoint, not a separate REST API.</td>
       </tr>
       <tr>
         <td>Challenge Password (API Token)</td>

@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
   <style>
+    #certTable .actions-column {
+      min-width: 440px;
+    }
+
     .cert-actions .cert-action {
       border-radius: 6px;
       border-width: 1px;
@@ -164,7 +168,7 @@
           <th>Status</th>
           <th>Enrollment</th>
           {% if is_admin %}<th>User</th>{% endif %}
-          <th>Actions</th>
+          <th class="actions-column">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -202,11 +206,14 @@
             <span class="badge badge-issuer enrollment-pill badge-issuer-{{ via }}">
               {{ via|upper }}
             </span>
+            {% set renewal = (renewal_links|default({})).get(id) %}
+            {% set renewal_context = id %}
+            {% include "_certificate_renewal.html" %}
           </td>
           {% if is_admin %}
             <td>{{ username if username else 'N/A' }}</td>
           {% endif %}
-          <td>
+          <td class="actions-column">
             <div class="btn-group cert-actions" role="group">
               <a href="/view/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-view" data-testid="btn-view-cert">View</a>
               <a href="/downloads/{{ id }}" class="btn btn-sm btn-ghost cert-action cert-action-pem" data-testid="btn-download-cert">&darr; Pem</a>

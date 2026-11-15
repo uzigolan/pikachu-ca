@@ -1,0 +1,27 @@
+{% if renewal %}
+  {% if renewal.previous %}
+    <div data-testid="certificate-renewal">
+      <span class="text-info" title="Certificate renewal" aria-label="Certificate renewal">&#8635;</span>
+      <small>Renewed from
+        {% set serial_id = 'renewal-previous-' ~ renewal_context %}
+        <button type="button" class="btn btn-link btn-sm p-0" title="{{ renewal.previous.serial }}" aria-label="Copy previous certificate serial" data-copy-target="{{ serial_id }}">{{ renewal.previous.serial[:10] }}{% if renewal.previous.serial|length > 10 %}...{% endif %}</button>
+        <span id="{{ serial_id }}" hidden>{{ renewal.previous.serial }}</span>
+        {% if renewal.previous.id %}
+          <a href="{{ url_for('view_certificate', cert_id=renewal.previous.id) }}" title="View previous certificate" aria-label="View previous certificate">&#8599;</a>
+        {% else %}
+          <span>(record unavailable)</span>
+        {% endif %}
+      </small>
+    </div>
+  {% endif %}
+  {% for successor in renewal.successors %}
+    <div data-testid="certificate-renewed-to">
+      {% set serial_id = 'renewal-successor-' ~ renewal_context ~ '-' ~ successor.id %}
+      <small>Renewed to<br>
+        <button type="button" class="btn btn-link btn-sm p-0" title="{{ successor.serial }}" aria-label="Copy renewed certificate serial" data-copy-target="{{ serial_id }}">{{ successor.serial[:10] }}{% if successor.serial|length > 10 %}...{% endif %}</button>
+        <span id="{{ serial_id }}" hidden>{{ successor.serial }}</span>
+        <a href="{{ url_for('view_certificate', cert_id=successor.id) }}" title="View renewed certificate" aria-label="View renewed certificate">&#8599;</a>
+      </small>
+    </div>
+  {% endfor %}
+{% endif %}

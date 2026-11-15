@@ -4,6 +4,7 @@ Two pytest suites live here:
 - `test_certificates_ui.py`: 17-step UI-style certificate lifecycle with 5s pauses between steps.
 - `test_certificates_api.py`: API/PowerShell flows (basic endpoints, EST, EST mTLS, SCEP, SCEP renewal, SCEP with challenge, and token-authenticated key API coverage) plus artifact/DB cleanup.
 - `test_certificates_scale.py`: certificate-list scale coverage for `/certs`, including pagination and lazy metadata cache backfill.
+- `../tests/test_scep_renewal.py`: isolated SCEP renewal, event success/failure, schema-upgrade, and certificate-relationship visibility tests (no live database required).
 
 ## Quick start
 - Activate venv: `.\.venv\Scripts\activate`

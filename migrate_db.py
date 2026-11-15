@@ -126,6 +126,7 @@ def migrate_db():
         keycol TEXT,
         not_valid_before TEXT,
         not_valid_after TEXT,
+        renewed_from_serial TEXT,
         issued_via TEXT CHECK(issued_via IN ('ui','scep','est','manual','unknown')) DEFAULT 'unknown',
         revoked INTEGER DEFAULT 0,
         user_id INTEGER
@@ -205,6 +206,8 @@ def migrate_db():
     ensure_column('certificates', 'keycol', 'TEXT')
     ensure_column('certificates', 'not_valid_before', 'TEXT')
     ensure_column('certificates', 'not_valid_after', 'TEXT')
+    from certificate_renewals import ensure_certificate_renewal_schema
+    ensure_certificate_renewal_schema(conn)
     ensure_column('profiles', 'user_id', 'INTEGER')
     ensure_column('profiles', 'created_at', 'DATETIME')
     ensure_column('profiles', 'content', 'TEXT')

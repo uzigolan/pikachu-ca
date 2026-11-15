@@ -73,6 +73,8 @@ python app.py
 - **challenge_password_enabled**: Enable challenge-password feature (`true`/`false`).
 - **challenge_password_validity**: Validity period for challenge-passwords (e.g., `60m`, `2m`).
 - **certificate_renewal_enabled**: Allow password-free SCEP renewal authenticated with an existing valid, unrevoked certificate issued by this CA and present in its database. Default `false`. Renewals must retain the subject and public key. The current SCEP RA policy determines the issued extensions, including SANs; CSR-requested extensions are not copied automatically. Restart the server after changing this setting.
+- Successful renewals appear as **Renewed** events with old/new serials. Certificates show **Renewed from** / **Renewed to** links; the old certificate is retained and is not automatically revoked. Authentication/policy/signing failures appear as **Renewal failed** events; failures before a request can be identified remain in server logs. Rejected authentication events are recorded under `scep` for administrators rather than attributing them to an unverified user.
+- On startup, the certificate schema adds `renewed_from_serial` automatically and recovers existing renewal relationships from recorded SCEP issuance events. The same upgrade is available through `python migrate_db.py`. Older renewal events retain their stored `create` type but display a **Renewed** badge.
 
 ## [OCSP]
 - **hash_algorithm**: OCSP CertID hash algorithm (`sha1` or `sha256`). Use `sha1` for legacy client compatibility, `sha256` for stronger hashing.

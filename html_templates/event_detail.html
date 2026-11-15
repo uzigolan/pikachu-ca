@@ -1,6 +1,16 @@
 {% extends "layout.html" %}
 {% block content %}
 <h2>Event Details</h2>
+{% set details = event[6]|event_details %}
+{% if event[1] == 'renew_failed' %}
+  <div class="alert alert-danger">Renewal failed: {{ details.get('reason', 'See event details below.') }}</div>
+{% elif event[1] == 'renew' or (event[1] == 'create' and details.get('renewal') == true) %}
+  <div class="alert alert-info">
+    <strong>Certificate renewed</strong><br>
+    Old serial: <a href="{{ url_for('index', q=details.get('previous_serial', '')) }}">{{ details.get('previous_serial', '') }}</a><br>
+    New serial: <a href="{{ url_for('index', q=event[3]) }}">{{ event[3] }}</a>
+  </div>
+{% endif %}
 <table class="table table-bordered" data-testid="event-detail-table">
   <tr><th>ID</th><td>{{ event[0] }}</td></tr>
   <tr><th>Event Type</th><td>{{ event[1] }}</td></tr>

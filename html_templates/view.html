@@ -8,6 +8,8 @@
       Issued via: {{ via|upper }}
     </span>
   </h1>
+  {% set renewal_context = certificate_id %}
+  {% include "_certificate_renewal.html" %}
   <div class="row">
     <div class="col-md-6">
       <h4>Certificate Summary</h4>

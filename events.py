@@ -9,6 +9,21 @@ import json
 bp = Blueprint('events', __name__, url_prefix='/events')
 
 
+@bp.app_template_filter('event_details')
+def event_details(value):
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        current_app.logger.warning("Invalid JSON in event details")
+        return {}
+    if not isinstance(parsed, dict):
+        current_app.logger.warning("Event details are not a JSON object")
+        return {}
+    return parsed
+
+
 def _format_local_timestamp(timestamp):
     if not timestamp:
         return ""

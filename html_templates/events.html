@@ -54,13 +54,18 @@
   </thead>
   <tbody>
     {% for event in events %}
+    {% set details = event[6]|event_details %}
     <tr>
       <td>{{ event[5] }}</td>
       {% if show_user_column %}
         <td>{{ event[4] }}</td>
       {% endif %}
       <td>
-        {% if event[1] == 'create' %}
+        {% if event[1] == 'renew_failed' %}
+          <span class="badge badge-danger">Renewal failed</span>
+        {% elif event[1] == 'renew' or (event[1] == 'create' and details.get('renewal') == true) %}
+          <span class="badge badge-info">Renewed</span>
+        {% elif event[1] == 'create' %}
           <span class="badge badge-success">Create</span>
         {% elif event[1] == 'delete' %}
           <span class="badge badge-danger">Delete</span>

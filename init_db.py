@@ -79,6 +79,7 @@ def main():
         keycol TEXT,
         not_valid_before TEXT,
         not_valid_after TEXT,
+        renewed_from_serial TEXT,
         issued_via TEXT CHECK(issued_via IN ('ui','scep','est','manual','unknown')) DEFAULT 'unknown',
         revoked INTEGER DEFAULT 0,
         user_id INTEGER
@@ -86,6 +87,8 @@ def main():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_user_id_id ON certificates(user_id, id DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_common_name ON certificates(common_name)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_serial ON certificates(serial)")
+    from certificate_renewals import ensure_certificate_renewal_schema
+    ensure_certificate_renewal_schema(conn)
 
     # Events table
     cur.execute('''

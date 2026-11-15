@@ -532,6 +532,7 @@ import re
 
 
 def _ensure_certificate_listing_schema(conn):
+    from certificate_renewals import ensure_certificate_renewal_schema
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(certificates)")
     columns = {row[1] for row in cur.fetchall()}
@@ -547,6 +548,7 @@ def _ensure_certificate_listing_schema(conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_user_id_id ON certificates(user_id, id DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_common_name ON certificates(common_name)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_certificates_serial ON certificates(serial)")
+    ensure_certificate_renewal_schema(conn)
     conn.commit()
 
 
@@ -1174,6 +1176,7 @@ def index():
                 f"""
                     SELECT c.id, c.subject, c.serial, c.revoked, c.cert_pem, c.user_id, c.issued_via,
                            c.common_name, c.keycol, c.not_valid_before, c.not_valid_after,
+                           c.renewed_from_serial,
                            u.username
                     FROM certificates c
                     LEFT JOIN users u ON u.id = c.user_id
@@ -1183,6 +1186,10 @@ def index():
                 """,
                 [*params, page_size, offset],
             ).fetchall()
+            from certificate_renewals import get_certificate_renewal_links
+            renewal_links = get_certificate_renewal_links(
+                conn, rows, None if current_user.is_admin() else current_user.id,
+            )
 
             pending_updates = []
             hydrated_rows = []
@@ -1217,6 +1224,7 @@ def index():
         return render_template(
             "list_certificates.html",
             certs=certs,
+            renewal_links=renewal_links,
             is_admin=current_user.is_admin(),
             current_page=page,
             page_size=page_size,
@@ -2610,17 +2618,22 @@ def view_certificate(cert_id):
     try:
         with sqlite3.connect(app.config["DB_PATH"]) as conn:
             conn.row_factory = sqlite3.Row
+            _ensure_certificate_listing_schema(conn)
             if current_user.is_admin():
                 cur = conn.execute(
-                    "SELECT id, subject, serial, revoked, cert_pem, issued_via FROM certificates WHERE id = ?",
+                    "SELECT id, subject, serial, revoked, cert_pem, issued_via, renewed_from_serial FROM certificates WHERE id = ?",
                     (cert_id,)
                 )
             else:
                 cur = conn.execute(
-                    "SELECT id, subject, serial, revoked, cert_pem, issued_via FROM certificates WHERE id = ? AND user_id = ?",
+                    "SELECT id, subject, serial, revoked, cert_pem, issued_via, renewed_from_serial FROM certificates WHERE id = ? AND user_id = ?",
                     (cert_id, current_user.id)
                 )
             row = cur.fetchone()
+            from certificate_renewals import get_certificate_renewal_links
+            renewal_links = get_certificate_renewal_links(
+                conn, [row] if row else [], None if current_user.is_admin() else current_user.id,
+            )
             app.logger.debug(f"DB row for id={cert_id}: {row!r}")
 
         if not row:
@@ -2645,6 +2658,8 @@ def view_certificate(cert_id):
             raw_cert_b64=raw_cert_b64,
             cert_text=cert_text,
             issued_via=row["issued_via"] if row and "issued_via" in row.keys() else "unknown",
+            certificate_id=cert_id,
+            renewal=renewal_links.get(cert_id),
             public_key_pem=pub_formats["public_pem"],
             public_key_openssh=pub_formats["openssh"],
             public_key_rfc4716=pub_formats["rfc4716"],
