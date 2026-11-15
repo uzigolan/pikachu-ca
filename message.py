@@ -9,11 +9,14 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding as asympad
 from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
 from cryptography.hazmat.primitives.ciphers.algorithms import AES
 from cryptography.hazmat.primitives.ciphers import Cipher, modes
+from cryptography.hazmat.primitives.padding import PKCS7
 from cryptography.hazmat.backends import default_backend
 from enums import MessageType
 from builders import certificates_from_asn1
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.constant_time import bytes_eq
+from asn1crypto import x509 as asn1_x509
 
 from asn1crypto.cms import CMSAttributes
 
@@ -27,6 +30,72 @@ def get_digest_method(name='sha1'):
     pass
 
 class SCEPMessage(object):
+
+    @staticmethod
+    def verify_request(raw: bytes) -> x509.Certificate:
+        """Verify the CMS signature and its binding to the encapsulated content."""
+        content_info = ContentInfo.load(raw, strict=True)
+        if content_info['content_type'].native != 'signed_data':
+            raise ValueError('Expected CMS signed data')
+        signed_data = content_info['content']
+        signers = signed_data['signer_infos']
+        if len(signers) != 1:
+            raise ValueError('Expected exactly one CMS signer')
+        signer = signers[0]
+        if signer['sid'].name != 'issuer_and_serial_number':
+            raise ValueError('Unsupported CMS signer identifier')
+        sid = signer['sid'].chosen
+        certs = certificates_from_asn1(signed_data['certificates'])
+        matches = []
+        for cert in certs:
+            encoded = asn1_x509.Certificate.load(cert.public_bytes(serialization.Encoding.DER))
+            if (encoded.serial_number == sid['serial_number'].native
+                    and encoded.issuer.dump() == sid['issuer'].dump()):
+                matches.append(cert)
+        if len(matches) != 1:
+            raise ValueError('CMS signer certificate not uniquely identified')
+
+        digest_name = signer['digest_algorithm']['algorithm'].native
+        hash_algorithms = {'sha1': hashes.SHA1, 'sha256': hashes.SHA256, 'sha512': hashes.SHA512}
+        if digest_name not in hash_algorithms:
+            raise ValueError('Unsupported CMS digest')
+        if signer['signature_algorithm'].signature_algo != 'rsassa_pkcs1v15':
+            raise ValueError('Unsupported CMS signature algorithm')
+        public_key = matches[0].public_key()
+        if not isinstance(public_key, rsa.RSAPublicKey):
+            raise ValueError('Unsupported CMS signer key')
+
+        attrs = signer['signed_attrs']
+        if attrs.native is None:
+            raise ValueError('Missing CMS signed attributes')
+        required = ('content_type', 'message_digest', 'message_type', 'transaction_id', 'sender_nonce')
+        values = {}
+        for attr in attrs:
+            name = attr['type'].native
+            if name in required:
+                if name in values or len(attr['values']) != 1:
+                    raise ValueError('Duplicate or malformed CMS attribute')
+                values[name] = attr['values'][0].native
+        if any(name not in values for name in required):
+            raise ValueError('Missing required CMS attribute')
+        content = signed_data['encap_content_info']
+        if content['content_type'].native != 'data' or values['content_type'] != 'data':
+            raise ValueError('Invalid CMS content type')
+        payload = content['content'].native
+        if not isinstance(payload, bytes):
+            raise ValueError('Missing CMS content')
+        digest = hashes.Hash(hash_algorithms[digest_name]())
+        digest.update(payload)
+        if not isinstance(values['message_digest'], bytes) or not bytes_eq(
+                digest.finalize(), values['message_digest']):
+            raise ValueError('CMS content digest mismatch')
+        public_key.verify(
+            signer['signature'].native,
+            attrs.untag().dump(),
+            asympad.PKCS1v15(),
+            hash_algorithms[digest_name](),
+        )
+        return matches[0]
 
     @classmethod
     def parse(cls, raw: bytes):
@@ -328,7 +397,9 @@ class SCEPMessage(object):
         cipher = Cipher(symkey, modes.CBC(algorithm.encryption_iv), backend=default_backend())
         decryptor = cipher.decryptor()
 
-        return decryptor.update(encrypted_content_bytes) + decryptor.finalize()
+        padded = decryptor.update(encrypted_content_bytes) + decryptor.finalize()
+        unpadder = PKCS7(symkey.block_size).unpadder()
+        return unpadder.update(padded) + unpadder.finalize()
 
     def debug(self):
         out = "SCEP Message\n"

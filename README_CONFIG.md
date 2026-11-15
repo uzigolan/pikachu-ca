@@ -72,6 +72,7 @@ python app.py
 - **dump_dir**: Directory for raw SCEP request dumps.
 - **challenge_password_enabled**: Enable challenge-password feature (`true`/`false`).
 - **challenge_password_validity**: Validity period for challenge-passwords (e.g., `60m`, `2m`).
+- **certificate_renewal_enabled**: Allow password-free SCEP renewal authenticated with an existing valid, unrevoked certificate issued by this CA and present in its database. Default `false`. Renewals must retain the subject and public key. The current SCEP RA policy determines the issued extensions, including SANs; CSR-requested extensions are not copied automatically. Restart the server after changing this setting.
 
 ## [OCSP]
 - **hash_algorithm**: OCSP CertID hash algorithm (`sha1` or `sha256`). Use `sha1` for legacy client compatibility, `sha256` for stronger hashing.

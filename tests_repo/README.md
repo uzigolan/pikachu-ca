@@ -2,7 +2,7 @@
 
 Two pytest suites live here:
 - `test_certificates_ui.py`: 17-step UI-style certificate lifecycle with 5s pauses between steps.
-- `test_certificates_api.py`: API/PowerShell flows (basic endpoints, EST, EST mTLS, SCEP, SCEP with challenge, and token-authenticated key API coverage) plus artifact/DB cleanup.
+- `test_certificates_api.py`: API/PowerShell flows (basic endpoints, EST, EST mTLS, SCEP, SCEP renewal, SCEP with challenge, and token-authenticated key API coverage) plus artifact/DB cleanup.
 - `test_certificates_scale.py`: certificate-list scale coverage for `/certs`, including pagination and lazy metadata cache backfill.
 
 ## Quick start
@@ -67,6 +67,7 @@ Two pytest suites live here:
   | `test_est_enrollment_via_estclient_go_mtls` | EST mTLS enrollment via estclient-go              |
   | `test_sscep_core`                           | SCEP core flow (no challenge password)            |
   | `test_sscep_with_challenge_password`        | SCEP flow using challenge password via API token  |
+  | `test_sscep_certificate_renewal`            | SCEP renewal signed by the old certificate/key    |
   | `test_key_api_*`                            | Key material API via token over HTTPS or TRUSTED_HTTPS |
 
 - Edition behavior:
@@ -84,7 +85,12 @@ Two pytest suites live here:
   $env:PYTHONPATH=(Resolve-Path .); .venv\Scripts\pytest.exe tests_repo/test_certificates_api.py --capture=tee-sys --self-contained-html --html=tests_repo/reports/pikachu_test_api_full_$(Get-Date -Format 'yyyy-MM-dd_HH-mm').html
   ```
   Auto-generates a challenge password via API token (not UI), attaches each PS1 stdout/stderr, then waits 20s and cleans generated keys/certs/CSRs and DB rows matching test subjects.
+  `/reports/api/latest` serves the matching report with the newest modification time. Reports are ignored by Git by default; to publish a reviewed report, explicitly stage its exact path with `git add -f` and commit/push it. Keep failed runs accurate rather than substituting results from earlier runs.
 - Common targeted runs:
+  - SCEP certificate renewal (requires `[SCEP] certificate_renewal_enabled = true`; it does not modify config):
+    ```powershell
+    $env:PYTHONPATH=(Resolve-Path .); .venv\Scripts\pytest.exe tests_repo/test_certificates_api.py -k "sscep_certificate_renewal" --capture=tee-sys
+    ```
   - Only mTLS EST:
     ```powershell
     $env:PYTHONPATH=(Resolve-Path .); .venv\Scripts\pytest.exe tests_repo/test_certificates_api.py -k "estclient_go_mtls" --capture=tee-sys --self-contained-html --html=tests_repo/reports/pikachu_test_api_mtls_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').html

@@ -1,5 +1,3 @@
-Write-Host "  > sscep $($Args -join ' ')" -ForegroundColor DarkGray
-
 if ($args.Count -lt 1) {
     Write-Host "[ERROR] Challenge password argument required. Usage: ./test_sscep_pass.ps1 <challengePassword>" -ForegroundColor Red
     exit 1

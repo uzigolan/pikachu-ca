@@ -19,7 +19,9 @@ from flask import (
 )
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import Encoding
+from cryptography.hazmat.primitives.serialization import PublicFormat
 from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidSignature
 from asn1crypto.csr import CertificationRequestInfo
 
 from message import SCEPMessage
@@ -55,6 +57,35 @@ CACAPS = (
 
 def _get_ra_mgr():
     return RAPolicyManager(current_app.config["DB_PATH"], current_app.logger)
+
+
+def _authenticate_renewal(signer_cert, csr, ca_cert):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if not signer_cert.not_valid_before_utc <= now <= signer_cert.not_valid_after_utc:
+        raise ValueError("Renewal certificate is not currently valid")
+    try:
+        signer_cert.verify_directly_issued_by(ca_cert)
+    except (ValueError, InvalidSignature, TypeError) as exc:
+        raise ValueError("Renewal certificate was not issued by this CA") from exc
+    with sqlite3.connect(current_app.config["DB_PATH"]) as conn:
+        rows = conn.execute(
+            "SELECT cert_pem, revoked, user_id FROM certificates WHERE serial = ?",
+            (hex(signer_cert.serial_number),),
+        ).fetchall()
+    matches = [
+        row for row in rows
+        if x509.load_pem_x509_certificate(row[0].encode()).public_bytes(Encoding.DER)
+        == signer_cert.public_bytes(Encoding.DER)
+    ]
+    if len(matches) != 1 or matches[0][1]:
+        raise ValueError("Renewal certificate is unknown, revoked, or ambiguous")
+    if csr.subject != signer_cert.subject:
+        raise ValueError("Renewal CSR subject does not match the signer")
+    csr_key = csr.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    signer_key = signer_cert.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    if csr_key != signer_key:
+        raise ValueError("Renewal CSR key does not match the signer")
+    return matches[0][2]
 
 
 def _load_pem_certificates(path):
@@ -110,7 +141,7 @@ def scep():
   dump_dir = current_app.config.get('SCEPY_DUMP_DIR')
   if dump_dir:
     os.makedirs(dump_dir, exist_ok=True)
-  dump_prefix = f"request-{datetime.datetime.utcnow().timestamp()}"
+  dump_prefix = f"request-{datetime.datetime.now(datetime.timezone.utc).timestamp()}"
 
   # SCEP always uses legacy mode (file-based keys)
   # SCEP protocol requires direct private key access for PKCS#7 envelope operations
@@ -142,7 +173,10 @@ def scep():
   # --- GetCACaps ---
   if op == 'GetCACaps':
     current_app.logger.debug("Handling GetCACaps")
-    return Response("\n".join(CACAPS) + "\n", mimetype='text/plain')
+    caps = CACAPS if current_app.config.get('SCEP_CERTIFICATE_RENEWAL_ENABLED', False) else (
+      cap for cap in CACAPS if cap != 'Renewal'
+    )
+    return Response("\n".join(caps) + "\n", mimetype='text/plain')
 
   # --- GetCACert ---
   if op == 'GetCACert':
@@ -199,8 +233,16 @@ def scep():
 
 
     # 2) parse & decrypt to get the DER CSR
-    req     = SCEPMessage.parse(raw)
-    der_csr = req.get_decrypted_envelope_data(ca.certificate, ca.private_key)
+    try:
+      signer_cert = SCEPMessage.verify_request(raw)
+      req = SCEPMessage.parse(raw)
+      der_csr = req.get_decrypted_envelope_data(ca.certificate, ca.private_key)
+      csr = x509.load_der_x509_csr(der_csr)
+      if not csr.is_signature_valid:
+        raise ValueError("Invalid CSR signature")
+    except (ValueError, TypeError, KeyError, IndexError, AssertionError, InvalidSignature) as exc:
+      current_app.logger.warning("Invalid SCEP request: %s", exc)
+      return abort(400, "Invalid SCEP request")
     current_app.logger.debug("Decrypted CSR length: %d bytes", len(der_csr))
     current_app.logger.debug("Request message type: %s", req.message_type)
 
@@ -212,7 +254,22 @@ def scep():
     # Challenge password validation using OpenSSL
     challenge_enabled = current_app.config.get('SCEP_CHALLENGE_PASSWORD_ENABLED', False)
     challenge_user_id = None
-    if challenge_enabled and req.message_type in (MessageType.PKCSReq, MessageType.RenewalReq):
+    renewal_enabled = current_app.config.get('SCEP_CERTIFICATE_RENEWAL_ENABLED', False)
+    is_renewal = req.message_type == MessageType.RenewalReq or (
+      req.message_type == MessageType.PKCSReq and (
+        signer_cert.issuer != signer_cert.subject or signer_cert.issuer == ca.certificate.subject
+      )
+    )
+    if is_renewal:
+      if not renewal_enabled:
+        return abort(403, "SCEP certificate renewal is disabled")
+      try:
+        challenge_user_id = _authenticate_renewal(signer_cert, csr, ca.certificate)
+      except (ValueError, TypeError) as exc:
+        current_app.logger.warning("SCEP renewal rejected: %s", exc)
+        return abort(403, "SCEP renewal authentication failed")
+
+    if challenge_enabled and not is_renewal and req.message_type == MessageType.PKCSReq:
       with tempfile.NamedTemporaryFile(delete=False, suffix=".csr") as tmp_csr:
         tmp_csr.write(der_csr)
         temp_csr_path = tmp_csr.name
@@ -226,7 +283,6 @@ def scep():
           for line in result.stdout.splitlines():
             if "challengePassword" in line:
               challenge_value = line.split(":", 1)[-1].strip()
-              current_app.logger.info(f"Extracted challengePassword via OpenSSL: {challenge_value}")
               break
         if not challenge_value:
           current_app.logger.error("Failed to extract challengePassword from CSR using OpenSSL.")
@@ -245,7 +301,7 @@ def scep():
           )
           row = cur.fetchone()
           if not row:
-            current_app.logger.error(f"Challenge password {challenge_value} not found in DB.")
+            current_app.logger.error("Challenge password not found in DB.")
             return abort(400, "Challenge password not recognized or expired")
           row_data = {
             "value": row[0],
@@ -260,16 +316,15 @@ def scep():
           usage_mode = normalize_challenge_mode(row_data["usage_mode"])
           use_count = derive_use_count(row_data)
           if usage_mode == CHALLENGE_MODE_SINGLE_USE and use_count > 0:
-            current_app.logger.error(f"Challenge password {challenge_value} already consumed.")
+            current_app.logger.error("Challenge password already consumed.")
             return abort(400, "Challenge password already used")
           expires_at, expired = compute_expiry(row_data["created_at"], row_data["validity"], usage_mode)
           if expired:
-            current_app.logger.error(f"Challenge password {challenge_value} expired at {expires_at}.")
+            current_app.logger.error("Challenge password expired at %s.", expires_at)
             return abort(400, "Challenge password expired")
           # Optionally log user_id and validity
           current_app.logger.info(
-            "Challenge password %s accepted for user_id=%s, validity=%s, usage_mode=%s, use_count=%s",
-            challenge_value,
+            "Challenge password accepted for user_id=%s, validity=%s, usage_mode=%s, use_count=%s",
             row_data["user_id"],
             row_data["validity"],
             usage_mode,
@@ -309,7 +364,7 @@ def scep():
       cert_tmp.close()
 
       # pick ext-block, serial, validity
-      ext_block        = request.form.get("ext_block", "v3_ext")
+      ext_block        = "v3_ext" if is_renewal else request.form.get("ext_block", "v3_ext")
       custom_serial    = hex(secrets.randbits(64))
       mgr = _get_ra_mgr()
       policy = mgr.get_protocol_default("scep")
@@ -372,28 +427,13 @@ def scep():
       # 5) store in your sqlite DB
       DB_PATH           = current_app.config['DB_PATH']
       with sqlite3.connect(DB_PATH) as conn:
-        # Store user_id if available
-        if challenge_user_id is not None:
-            conn.execute(
-                "INSERT INTO certificates (subject, serial, cert_pem, issued_via, user_id) VALUES (?,?,?,?,?)",
-                (
-                    subject_str,
-                    actual_serial,
-                    cert_pem,
-                    'scep',
-                    challenge_user_id
-                )
-            )
-        else:
-            conn.execute(
-                "INSERT INTO certificates (subject, serial, cert_pem, issued_via) VALUES (?,?,?,?)",
-                (
-                    subject_str,
-                    actual_serial,
-                    cert_pem,
-                    'scep'
-                )
-            )
+        conn.execute(
+          """INSERT INTO certificates
+             (subject, serial, cert_pem, issued_via, user_id, not_valid_before, not_valid_after)
+             VALUES (?, ?, ?, ?, ?, ?, ?)""",
+          (subject_str, actual_serial, cert_pem, 'scep', challenge_user_id,
+           cert_obj.not_valid_before_utc.isoformat(), cert_obj.not_valid_after_utc.isoformat()),
+        )
         conn.commit()
 
       # Log event for SCEP certificate issuance
@@ -406,7 +446,9 @@ def scep():
           user_id=challenge_user_id if challenge_user_id is not None else "scep",
           details={
             "subject": subject_str,
-            "issued_via": "scep"
+            "issued_via": "scep",
+            "renewal": is_renewal,
+            "previous_serial": hex(signer_cert.serial_number) if is_renewal else None,
           }
         )
       except Exception as e:
@@ -423,7 +465,7 @@ def scep():
       envelope, _, _ = (
         PKCSPKIEnvelopeBuilder()
           .encrypt(deg.dump(), 'aes256')
-          .add_recipient(req.certificates[0])
+          .add_recipient(signer_cert)
           .finalize()
       )
       signer = Signer(ca.certificate, ca.private_key, 'sha256')

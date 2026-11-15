@@ -1,5 +1,6 @@
 import configparser
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -281,11 +282,31 @@ def _load_challenge_password_row(value):
 
 def _run_sscep_with_password(request, challenge_value, output_name):
     proc = _run_ps_script("test_sscep_pass.ps1", args=[challenge_value], timeout=180)
+    if proc.stdout:
+        proc.stdout = proc.stdout.replace(challenge_value, "[REDACTED]")
+    if proc.stderr:
+        proc.stderr = proc.stderr.replace(challenge_value, "[REDACTED]")
     output = _emit_and_attach(request, output_name, proc)
     _skip_if_missing_tool(proc, ["sscep.exe", "openssl"])
     if proc.returncode != 0:
         pytest.fail(f"{output_name} failed:\n{output}")
     return output
+
+
+def _delete_renewal_certificates(common_name):
+    """Delete only the certificates issued by one renewal integration test."""
+    cfg = configparser.ConfigParser()
+    cfg.read(ROOT_DIR / "config.ini")
+    db_rel = cfg.get("PATHS", "db_path", fallback="PKI.db")
+    db_path = ROOT_DIR / db_rel
+    if not db_path.exists():
+        raise RuntimeError(f"Certificate database is unavailable: {db_path}")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "DELETE FROM certificates WHERE subject LIKE ?",
+            (f"%{common_name}%",),
+        )
+        conn.commit()
 
 
 def test_sscep_with_challenge_password(request):
@@ -302,6 +323,50 @@ def test_sscep_with_challenge_password(request):
     assert row["use_count"] >= 1
     view = build_challenge_password_view(row)
     assert view["status_label"] == "Consumed"
+
+
+def test_sscep_certificate_renewal(request):
+    """Renew a SCEP certificate signed by its old certificate/key."""
+    if not _is_enterprise():
+        pytest.skip("SCEP renewal is enterprise-only in community mode")
+
+    cfg = configparser.ConfigParser()
+    cfg.read(ROOT_DIR / "config.ini")
+    if not cfg.getboolean("SCEP", "certificate_renewal_enabled", fallback=False):
+        pytest.skip("SCEP certificate renewal is disabled in config.")
+
+    sscep_candidates = (
+        ROOT_DIR / "tests" / "sscep" / "sscep.exe",
+        ROOT_DIR / "tests" / "sscep" / "build" / "Release" / "sscep.exe",
+    )
+    if not any(path.exists() for path in sscep_candidates) or not shutil.which("openssl"):
+        pytest.skip("sscep.exe or openssl is unavailable")
+
+    common_name = f"sscep-renew-{uuid.uuid4().hex}"
+    script_args = ["-CommonName", common_name]
+    if cfg.getboolean("SCEP", "challenge_password_enabled", fallback=False):
+        challenge = _generate_challenge_password()
+        if not isinstance(challenge, dict):
+            pytest.fail(f"Could not generate initial enrollment challenge password: {challenge}")
+        script_args.extend(("-ChallengePassword", challenge["value"]))
+
+    try:
+        try:
+            proc = _run_ps_script(
+                "test_sscep_renew.ps1",
+                args=script_args,
+                timeout=240,
+            )
+        except subprocess.TimeoutExpired:
+            pytest.fail("test_sscep_renew.ps1 timed out after 240 seconds")
+
+        output = _emit_and_attach(request, "test_sscep_renew.ps1 output", proc)
+        if "[SKIP]" in output:
+            pytest.fail(f"test_sscep_renew.ps1 skipped after prerequisites were verified:\n{output}")
+        if proc.returncode != 0:
+            pytest.fail(f"test_sscep_renew.ps1 failed:\n{output}")
+    finally:
+        _delete_renewal_certificates(common_name)
 
 
 def test_sscep_with_reusable_challenge_password_can_enroll_twice(request):

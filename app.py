@@ -252,6 +252,7 @@ app.config["SCEPY_DUMP_DIR"]   = _cfg.get("SCEP", "dump_dir", fallback=None)
 app.config["SCEP_GETCACERT_INCLUDE_CHAIN"] = _cfg.getboolean("SCEP", "getcacert_include_chain", fallback=False)
 app.config["SCEP_CHALLENGE_PASSWORD_ENABLED"] = _cfg.getboolean("SCEP", "challenge_password_enabled", fallback=False)
 app.config["SCEP_CHALLENGE_PASSWORD_VALIDITY"] = _cfg.get("SCEP", "challenge_password_validity", fallback="60m")
+app.config["SCEP_CERTIFICATE_RENEWAL_ENABLED"] = _cfg.getboolean("SCEP", "certificate_renewal_enabled", fallback=False)
 HTTP_SCEP_PORT                = _cfg.getint("SCEP", "http_port", fallback=9090)
 app.config["SAFETY_REPORTS_ENABLED"] = _cfg.getboolean(
     "SECURITY",
