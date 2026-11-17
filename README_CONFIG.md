@@ -91,6 +91,8 @@ python app.py
 - This listener requires a client certificate signed by the CA chain loaded by the server.
 - Token-authenticated key material API routes (`/api/keys/<name>/private`, `/api/keys/<name>/public`) also work on this listener and benefit from mTLS when used here.
 
+Both HTTPS listeners use the process OpenSSL configuration for TLS groups. On Rocky Linux, Pikachu automatically loads `pki-https/openssl-mlkem.cnf` when `OPENSSL_CONF` is not already set and the system OpenSSL config exists. The overlay retains the system crypto-policy settings and prefers `X25519MLKEM768`, followed by `X25519`, `secp256r1`, and `secp384r1`. Restart Pikachu after changing the config. If `OPENSSL_CONF` is set externally, that config must provide the same `Groups` setting.
+
 ## [PATHS]
 - **crl_path**: Path to CRL file.
 - **server_ext_cfg**: Path to server extension config file.

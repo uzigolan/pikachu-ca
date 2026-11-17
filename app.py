@@ -1,6 +1,17 @@
 ﻿# Debug route for test: returns current_user info
-from flask_login import current_user
 import os
+from pathlib import Path
+
+_mlkem_openssl_config = Path(__file__).resolve().with_name("pki-https").joinpath("openssl-mlkem.cnf")
+_system_openssl_config = Path("/etc/pki/tls/openssl.cnf")
+if (
+    "OPENSSL_CONF" not in os.environ
+    and _mlkem_openssl_config.is_file()
+    and _system_openssl_config.is_file()
+):
+    os.environ["OPENSSL_CONF"] = str(_mlkem_openssl_config)
+
+from flask_login import current_user
 import sqlite3
 import json
 import logging
@@ -17,7 +28,6 @@ import base64
 import binascii
 import re
 import ssl
-from pathlib import Path
 from datetime import datetime,timezone, timedelta
 from threading import Thread
 from flask import Flask, render_template, request, redirect, send_file, make_response, flash, url_for, Response, session, abort, jsonify, current_app
